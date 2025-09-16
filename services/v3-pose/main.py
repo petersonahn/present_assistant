@@ -17,8 +17,9 @@ from typing import Dict, List
 import logging
 import orjson  # 더 빠른 JSON 라이브러리
 from functools import lru_cache
-
+import os
 from pose_estimator import create_pose_estimator, HumanPoseEstimator
+from emotion_analyzer import EmotionAnalyzer
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -27,8 +28,8 @@ logger = logging.getLogger(__name__)
 # FastAPI 앱 생성
 app = FastAPI(
     title="실시간 면접 피드백 시스템",
-    description="AI 기반 포즈 감지 및 피드백 API",
-    version="1.0.0"
+    description="AI 기반 감정+포즈 동시 분석 API",
+    version="2.0.0"
 )
 
 # CORS 설정
@@ -52,6 +53,7 @@ else:
 
 # 전역 포즈 추정기 인스턴스
 pose_estimator: HumanPoseEstimator = None
+emotion_analyzer: EmotionAnalyzer = None
 
 # 최적화된 JSON 응답 함수
 def fast_json_response(content: Dict, status_code: int = 200) -> JSONResponse:
@@ -76,11 +78,13 @@ def get_cached_keypoint_info():
 @app.on_event("startup")
 async def startup_event():
     """서버 시작 시 모델 로드"""
-    global pose_estimator
+    global pose_estimator, emotion_analyzer
     try:
         logger.info("포즈 추정 모델 로딩 중...")
         pose_estimator = create_pose_estimator()
-        logger.info("모델 로딩 완료!")
+        logger.info("포즈 모델 로딩 완료!")
+        emotion_analyzer = EmotionAnalyzer()
+        logger.info("감정 분석기 로딩 완료!")
     except Exception as e:
         logger.error(f"모델 로딩 실패: {e}")
         raise e
@@ -151,6 +155,48 @@ def cv2_to_base64(image: np.ndarray) -> str:
     # tobytes()가 tostring()보다 빠름
     image_base64 = base64.b64encode(buffer.tobytes()).decode('utf-8')
     return image_base64
+
+@app.post("/analyze")
+async def analyze_all(data: Dict):
+    """
+    Base64 이미지에서 감정+포즈 동시 분석
+    Args: {"image": "base64_encoded_image"}
+    Returns: 감정+포즈 분석 결과
+    """
+    if pose_estimator is None or emotion_analyzer is None:
+        raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다")
+    try:
+        if "image" not in data:
+            raise HTTPException(status_code=400, detail="'image' 필드가 필요합니다")
+        image_base64 = data["image"]
+        if image_base64.startswith("data:image"):
+            image_base64 = image_base64.split(",")[1]
+        image_data = base64.b64decode(image_base64)
+        image = Image.open(io.BytesIO(image_data))
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        image_np = np.array(image)
+        # 감정 분석
+        emotion_result = emotion_analyzer.analyze(image_np)
+        # 포즈 분석
+        image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+        pose_result = pose_estimator.estimate_pose(image_bgr)
+        # (선택) 포즈 시각화 이미지
+        include_result_image = data.get("include_result_image", False)
+        result_image_base64 = None
+        if include_result_image:
+            pose_image = pose_estimator.draw_pose(image_bgr, pose_result['keypoints'])
+            _, buffer = cv2.imencode('.jpg', pose_image)
+            result_image_base64 = f"data:image/jpeg;base64,{base64.b64encode(buffer.tobytes()).decode('utf-8')}"
+        return fast_json_response({
+            "success": True,
+            "emotion": emotion_result,
+            "pose": pose_result,
+            "result_image": result_image_base64
+        })
+    except Exception as e:
+        logger.error(f"감정+포즈 분석 중 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"감정+포즈 분석 실패: {str(e)}")
 
 @app.post("/pose/analyze")
 async def analyze_pose(file: UploadFile = File(...)):

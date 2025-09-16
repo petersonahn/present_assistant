@@ -346,9 +346,9 @@ class RealTimeSpeechService:
                         data=mock_audio_data,
                         timestamp=current_time,
                         sample_rate=16000,
-                        channels=1,
                         volume_level=volume,
-                        is_speech=is_speech
+                        is_speech=is_speech,
+                        duration=1.0
                     )
                     
                     # 오디오 청크 처리

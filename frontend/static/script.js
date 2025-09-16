@@ -576,8 +576,10 @@ class InterviewFeedbackSystem {
                 console.warn('[fb-aggregator] WS closed, retrying…');
                 setTimeout(() => this.connectFeedbackWS(), 1200);
             };
-            this.ws.onerror = () => {
+            this.ws.onerror = (error) => {
+                console.warn('[fb-aggregator] WS error:', error);
                 try { this.ws.close(); } catch(_) {}
+                // WebSocket 실패해도 다른 기능은 계속 작동
             };
         } catch (e) {
             console.warn('WS 연결 실패:', e);
