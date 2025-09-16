@@ -1,2 +1,11 @@
+# Web Framework
 fastapi
 uvicorn[standard]
+
+# HTTP Client & JSON
+httpx
+orjson
+
+# Data / schema
+numpy
+pydantic==2.9.2

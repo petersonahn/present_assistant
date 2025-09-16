@@ -227,9 +227,9 @@ class HumanPoseEstimator:
         if not keypoints or len(keypoints) == 0:
             analysis['feedback'] = [
                 '사람이 감지되지 않았습니다 👤',
-                '카메라에 전신이 잘 보이도록 조정해주세요',
+                '카메라에 상반신이 잘 보이도록 조정해주세요',
                 '조명이 충분한지 확인해주세요 💡',
-                '카메라와 1-2미터 거리를 유지해주세요 📏'
+                '화면 중앙에 위치해주세요 📷'
             ]
             analysis['posture_score'] = 0
             logger.warning("키포인트가 전혀 감지되지 않음")
@@ -249,10 +249,12 @@ class HumanPoseEstimator:
             return analysis
         
         try:
-            # 기본 점수 (키포인트가 감지되면 30점)
-            analysis['posture_score'] = 30
+            # 기본 점수 (상반신 웹캠 촬영 기준으로 조정)
+            base_score = min(40, len(keypoints) * 10)  # 키포인트 개수에 따라 기본점수 조정
+            analysis['posture_score'] = base_score
             
             logger.info(f"분석에 사용할 키포인트: {list(kp_dict.keys())}")
+            logger.info(f"기본 점수: {base_score}점 (키포인트 {len(keypoints)}개)")
             
             # 어깨 균형 체크 (더 유연한 조건)
             shoulders = [kp for name, kp in kp_dict.items() if 'shoulder' in name]
@@ -276,8 +278,8 @@ class HumanPoseEstimator:
                 # 한쪽 어깨만 보이는 경우도 부분 인정
                 analysis['shoulder_balance'] = 'partial'
                 analysis['posture_score'] += 15
-                shoulder_side = 'L' if 'l_shoulder' in kp_dict else 'R'
-                analysis['feedback'].append(f'{shoulder_side}쪽 어깨만 감지되었습니다. 정면을 향해주세요')
+                shoulder_side = '왼쪽' if 'l_shoulder' in kp_dict else '오른쪽'
+                analysis['feedback'].append(f'{shoulder_side} 어깨만 보입니다. 몸을 정면으로 향해주세요')
                 logger.info(f"한쪽 어깨만 감지: {shoulder_side}")
             elif 'neck' in kp_dict:
                 # 어깨가 없어도 목이 있으면 부분 점수
@@ -353,11 +355,13 @@ class HumanPoseEstimator:
                         if elbow['y'] >= shoulder['y'] - 60:  # 매우 관대한 조건
                             analysis['arm_position'] = 'natural'
                             analysis['posture_score'] += 25
-                            analysis['feedback'].append(f'{side.upper()}팔 자세가 자연스러워요 ✓')
+                            side_kr = '왼쪽' if side == 'l' else '오른쪽'
+                            analysis['feedback'].append(f'{side_kr} 팔 자세가 자연스러워요 ✓')
                         else:
                             analysis['arm_position'] = 'raised'
                             analysis['posture_score'] += 15
-                            analysis['feedback'].append(f'{side.upper()}팔이 약간 올라가 있어요 ⚠')
+                            side_kr = '왼쪽' if side == 'l' else '오른쪽'
+                            analysis['feedback'].append(f'{side_kr} 팔이 약간 올라가 있어요 ⚠')
                         arm_detected = True
                         break
                     elif elbow_key in kp_dict and wrist_key in kp_dict:
@@ -369,11 +373,13 @@ class HumanPoseEstimator:
                         if wrist['y'] >= elbow['y'] - 30:
                             analysis['arm_position'] = 'estimated'
                             analysis['posture_score'] += 20
-                            analysis['feedback'].append(f'{side.upper()}팔 위치가 자연스러운 것으로 추정됩니다 👌')
+                            side_kr = '왼쪽' if side == 'l' else '오른쪽'
+                            analysis['feedback'].append(f'{side_kr} 팔 위치가 자연스러워 보입니다 👌')
                         else:
                             analysis['arm_position'] = 'partial'
                             analysis['posture_score'] += 10
-                            analysis['feedback'].append(f'{side.upper()}팔 일부만 감지되었습니다')
+                            side_kr = '왼쪽' if side == 'l' else '오른쪽'
+                            analysis['feedback'].append(f'{side_kr} 팔 일부만 보입니다')
                         arm_detected = True
                         break
             
@@ -401,15 +407,15 @@ class HumanPoseEstimator:
             # 점수 상한 설정
             analysis['posture_score'] = min(100, analysis['posture_score'])
             
-            # 전체적인 피드백
-            if analysis['posture_score'] >= 70:
-                analysis['feedback'].insert(0, '전반적으로 좋은 자세입니다! 👍')
+            # 상반신 중심 전체적인 피드백
+            if analysis['posture_score'] >= 80:
+                analysis['feedback'].insert(0, '훌륭한 면접 자세입니다! 👍')
+            elif analysis['posture_score'] >= 60:
+                analysis['feedback'].insert(0, '좋은 자세를 유지하고 계세요 👌')
             elif analysis['posture_score'] >= 40:
-                analysis['feedback'].insert(0, '자세가 괜찮습니다. 조금만 더 개선해보세요 👌')
-            elif analysis['posture_score'] >= 20:
-                analysis['feedback'].insert(0, '키포인트가 감지되었습니다. 자세를 개선해보세요 📐')
+                analysis['feedback'].insert(0, '상반신 자세를 조금 더 개선해보세요 📐')
             else:
-                analysis['feedback'].insert(0, '카메라 위치를 조정하여 전신이 잘 보이도록 해주세요 📷')
+                analysis['feedback'].insert(0, '카메라에 상반신이 잘 보이도록 조정해주세요 📷')
                 
         except Exception as e:
             logger.error(f"포즈 분석 중 오류: {e}")

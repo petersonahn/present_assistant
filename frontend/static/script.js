@@ -390,29 +390,14 @@ class InterviewFeedbackSystem {
     }
     
     drawKeypoints(keypoints) {
+        // 면접 모드에서는 키포인트 시각화 비활성화
         if (!this.settings.showKeypoints) return;
         
-        // 캔버스 클리어
+        // 캔버스 클리어만 수행 (키포인트는 그리지 않음)
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 키포인트 그리기
-        keypoints.forEach(kp => {
-            // 키포인트 점 그리기
-            this.ctx.beginPath();
-            this.ctx.arc(kp.x, kp.y, 5, 0, 2 * Math.PI);
-            this.ctx.fillStyle = this.getKeypointColor(kp.name);
-            this.ctx.fill();
-            
-            // 신뢰도가 높은 경우 라벨 표시
-            if (kp.confidence > 0.5) {
-                this.ctx.fillStyle = 'white';
-                this.ctx.font = '12px Arial';
-                this.ctx.fillText(kp.name, kp.x + 8, kp.y - 8);
-            }
-        });
-        
-        // 스켈레톤 연결선 그리기
-        this.drawSkeleton(keypoints);
+        // 키포인트와 스켈레톤 그리기 비활성화 (면접 환경에서 방해 요소 제거)
+        // 개발자 모드에서만 필요할 때 활성화 가능
     }
     
     getKeypointColor(name) {

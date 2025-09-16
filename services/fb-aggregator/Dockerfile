@@ -1,16 +1,16 @@
 FROM python:3.11-slim
 
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
-# 의존성 미리 정의 (권장: requirements.txt 따로 두기)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# 소스 복사
 COPY . .
-
 EXPOSE 15030
-
-# FastAPI 실행 (Uvicorn)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "15030"]
+CMD ["uvicorn","main:app","--host","0.0.0.0","--port","15030"]
