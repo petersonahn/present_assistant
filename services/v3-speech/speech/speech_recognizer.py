@@ -102,12 +102,9 @@ class WhisperModelManager:
                             )
                             logger.info("로컬 캐시에서 Hugging Face 모델 로드 성공")
                         except Exception as hf_error:
-                            logger.warning(f"Hugging Face 로컬 캐시 실패: {hf_error}")
-                            
-                            # 3차 시도: 목 모델 (Mock Model)
-                            logger.warning("모든 모델 로드 실패, Mock 모델 사용")
-                            self.model = self._create_mock_model()
-                            self.processor = None
+                            logger.error(f"Hugging Face 로컬 캐시 실패: {hf_error}")
+                            logger.error("모든 Whisper 모델 로드 실패")
+                            raise Exception("Whisper 모델을 로드할 수 없습니다. 인터넷 연결을 확인하거나 모델을 사전 다운로드하세요.")
                     
                     # 모델을 디바이스로 이동
                     if hasattr(self.model, 'to'):
@@ -133,36 +130,6 @@ class WhisperModelManager:
                     self.model_loaded = False
                     return False
     
-    def _create_mock_model(self):
-        """Mock 모델 생성 (오프라인 대안)"""
-        class MockWhisperModel:
-            def transcribe(self, audio, **kwargs):
-                """Mock 음성 인식 결과 반환"""
-                # 간단한 더미 텍스트 반환
-                dummy_texts = [
-                    "안녕하세요. 면접에 참여하게 되어 기쁩니다.",
-                    "저는 이 회사에서 일하고 싶습니다.",
-                    "제 경험을 말씀드리겠습니다.",
-                    "질문에 답변하겠습니다.",
-                    "감사합니다."
-                ]
-                
-                import random
-                selected_text = random.choice(dummy_texts)
-                
-                return {
-                    "text": selected_text,
-                    "language": "ko",
-                    "segments": [{
-                        "start": 0.0,
-                        "end": len(audio) / 16000,
-                        "text": selected_text,
-                        "words": []
-                    }]
-                }
-        
-        logger.info("Mock Whisper 모델 생성됨")
-        return MockWhisperModel()
     
     def unload_model(self):
         """모델 언로드 (메모리 절약)"""

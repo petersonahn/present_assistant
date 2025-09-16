@@ -323,25 +323,33 @@ class RealTimeAudioCapture:
             return False
         
         try:
-            # 디바이스 설정
+            # 1. 실제 sounddevice 디바이스 자동 선택
             if device_id is None:
-                device_id = self.config.audio.DEFAULT_DEVICE
+                # 사용 가능한 입력 디바이스 자동 검색
+                devices = sd.query_devices()
+                input_devices = [i for i, d in enumerate(devices) if d['max_input_channels'] > 0]
+                if input_devices:
+                    device_id = input_devices[0]  # 첫 번째 사용 가능한 입력 디바이스
+                    logger.info(f"자동 선택된 디바이스: {devices[device_id]['name']}")
+                else:
+                    device_id = None  # 기본 디바이스 사용
             
-            # 오디오 스트림 파라미터
-            audio_params = self.config.get_audio_params()
-            audio_params['device'] = device_id
-            
-            # 스트림 생성
+            # 2. 실제 sounddevice 스트림 파라미터 (16kHz, 모노, 실시간)
             self.stream = sd.InputStream(
+                device=device_id,
+                channels=1,  # 모노
+                samplerate=16000,  # 16kHz (Whisper 최적화)
+                blocksize=1024,  # 실시간 처리용 작은 블록
+                dtype=np.float32,  # 32-bit float
                 callback=self._audio_callback,
-                **audio_params
+                latency='low'  # 저지연 모드
             )
             
-            # 스트림 시작
+            # 3. sounddevice 스트림 시작
             self.stream.start()
             self.is_recording = True
             
-            # 처리 스레드 시작
+            # 4. 실시간 처리 스레드 시작
             self.stop_event.clear()
             self.processing_thread = threading.Thread(
                 target=self._process_audio_chunks,
@@ -349,7 +357,7 @@ class RealTimeAudioCapture:
             )
             self.processing_thread.start()
             
-            logger.info(f"오디오 녹음 시작 - 디바이스: {device_id}")
+            logger.info(f"실제 sounddevice 오디오 녹음 시작 - 디바이스: {device_id}")
             return True
             
         except Exception as e:

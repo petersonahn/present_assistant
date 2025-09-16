@@ -145,8 +145,8 @@ class KoreanEmotionAnalyzer:
                 
             except Exception as e:
                 logger.error(f"한국어 감정 분석 모델 로딩 실패: {e}")
-                # Mock 모델로 대체
-                return self._load_mock_model()
+                # 실제 모델만 사용, Mock 모델 제거
+                raise Exception("한국어 감정 분석 모델을 로드할 수 없습니다.")
     
     def _load_fallback_model(self) -> bool:
         """백업 모델 로드 (오프라인 우선)"""
@@ -169,13 +169,12 @@ class KoreanEmotionAnalyzer:
                 return True
                 
             except Exception as local_error:
-                logger.warning(f"백업 모델 로컬 캐시 실패: {local_error}")
-                # Mock 모델로 대체
-                return self._load_mock_model()
+                logger.error(f"백업 모델 로컬 캐시 실패: {local_error}")
+                raise Exception("백업 감정 분석 모델을 로드할 수 없습니다.")
             
         except Exception as e:
             logger.error(f"백업 모델 로딩 실패: {e}")
-            return self._load_mock_model()
+            raise Exception("백업 감정 분석 모델을 로드할 수 없습니다.")
     
     def _load_mock_model(self) -> bool:
         """Mock 감정 분석 모델 로드"""

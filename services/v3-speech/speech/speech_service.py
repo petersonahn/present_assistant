@@ -110,7 +110,6 @@ class RealTimeSpeechService:
         # 동기화 객체
         self.stop_event = threading.Event()
         self.processing_lock = threading.Lock()
-        self.mock_thread = None
         
         # 통계 및 성능 모니터링
         self.stats = {
@@ -257,9 +256,15 @@ class RealTimeSpeechService:
             self.stats['session_start_time'] = time.time()
             self.stop_event.clear()
             
-            # Mock 모드로 시작 (Docker 환경에서 오디오 디바이스 접근 불가)
-            logger.info("Docker 환경에서 Mock 모드로 음성 분석 시작")
-            self._start_mock_audio_simulation()
+            # 실제 sounddevice 오디오 캡처 시작
+            if self.audio_capture:
+                logger.info("실제 sounddevice 오디오 캡처 시작")
+                if not self.audio_capture.start_recording(device_id):
+                    logger.error("오디오 캡처 시작 실패")
+                    return False
+            else:
+                logger.error("오디오 캡처 모듈이 초기화되지 않았습니다")
+                return False
             
             self.is_running = True
             logger.info("실시간 음성 분석 시작")
@@ -297,9 +302,6 @@ class RealTimeSpeechService:
                 except Exception as e:
                     logger.warning(f"오디오 캡처 중지 실패 (Mock 모드에서는 정상): {e}")
             
-            # Mock 스레드 정리
-            if hasattr(self, 'mock_thread') and self.mock_thread and self.mock_thread.is_alive():
-                self.mock_thread.join(timeout=2.0)
             
             # 음성 인식기 중지
             if self.speech_recognizer:
@@ -316,56 +318,6 @@ class RealTimeSpeechService:
             
         except Exception as e:
             logger.error(f"실시간 분석 중지 오류: {e}")
-    
-    def _start_mock_audio_simulation(self):
-        """Mock 오디오 시뮬레이션 시작"""
-        import threading
-        import random
-        
-        def mock_audio_generator():
-            logger.info("Mock 오디오 시뮬레이션 시작")
-            chunk_count = 0
-            
-            while self.is_running and not self.stop_event.is_set():
-                try:
-                    # Mock 오디오 청크 생성
-                    chunk_count += 1
-                    current_time = time.time()
-                    
-                    # 가변적인 Mock 데이터 생성
-                    is_speech = chunk_count % 3 == 0  # 3번 중 1번은 음성으로 간주
-                    volume = random.uniform(0.3, 0.8) if is_speech else random.uniform(0.0, 0.2)
-                    
-                    # Mock AudioChunk 생성
-                    from .audio_capture import AudioChunk
-                    import numpy as np
-                    
-                    mock_audio_data = np.random.normal(0, 0.1, 16000).astype(np.float32)  # 1초 분량
-                    
-                    chunk = AudioChunk(
-                        data=mock_audio_data,
-                        timestamp=current_time,
-                        sample_rate=16000,
-                        volume_level=volume,
-                        is_speech=is_speech,
-                        duration=1.0
-                    )
-                    
-                    # 오디오 청크 처리
-                    self._on_audio_chunk(chunk)
-                    
-                    # 1초 대기
-                    time.sleep(1.0)
-                    
-                except Exception as e:
-                    logger.error(f"Mock 오디오 시뮬레이션 오류: {e}")
-                    time.sleep(1.0)
-            
-            logger.info("Mock 오디오 시뮬레이션 종료")
-        
-        # Mock 오디오 스레드 시작
-        self.mock_thread = threading.Thread(target=mock_audio_generator, daemon=True)
-        self.mock_thread.start()
     
     def _on_audio_chunk(self, chunk: AudioChunk):
         """오디오 청크 처리 (메인 콜백)"""
