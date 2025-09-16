@@ -1,2 +1,15 @@
 fastapi
 uvicorn[standard]
+
+# AI 관련
+torch==2.3.1
+torchvision==0.18.1
+timm==1.0.9
+
+# 영상 처리
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+
+# JSON & HTTP
+orjson
+httpx
