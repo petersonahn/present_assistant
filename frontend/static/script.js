@@ -14,7 +14,7 @@ class InterviewFeedbackSystem {
         // 설정
         this.settings = {
             analysisInterval: 2000,
-            showKeypoints: true,
+            showKeypoints: false,  // 면접 환경에서 키포인트 비표시
             voiceFeedback: false,
             sensitivity: 5
         };
@@ -308,6 +308,7 @@ class InterviewFeedbackSystem {
     getStatusText(status) {
         const statusMap = {
             'balanced': '균형잡힘 ✓',
+            'fair': '양호함 👌',
             'unbalanced': '불균형 ⚠',
             'partial': '부분감지 ◐',
             'estimated': '추정됨 ⚡',

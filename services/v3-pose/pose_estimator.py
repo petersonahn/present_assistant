@@ -264,16 +264,39 @@ class HumanPoseEstimator:
                 left_shoulder = kp_dict['l_shoulder']
                 right_shoulder = kp_dict['r_shoulder']
                 
+                # 웹캠 각도를 고려한 어깨 균형 분석
                 shoulder_diff = abs(left_shoulder['y'] - right_shoulder['y'])
                 
-                if shoulder_diff < 40:  # 더욱 관대한 임계값
+                # 어깨 높이 차이와 함께 전체적인 자세도 고려
+                shoulder_center_x = (left_shoulder['x'] + right_shoulder['x']) / 2
+                shoulder_width = abs(left_shoulder['x'] - right_shoulder['x'])
+                
+                # 어깨 펴짐 정도 분석 (목과의 관계)
+                if 'neck' in kp_dict:
+                    neck = kp_dict['neck']
+                    # 목이 어깨보다 앞으로 나와있는 정도 체크
+                    neck_forward = neck['y'] - min(left_shoulder['y'], right_shoulder['y'])
+                    
+                    if neck_forward > 30:  # 목이 어깨보다 많이 앞으로 나온 경우
+                        analysis['feedback'].append('어깨를 뒤로 펴고 가슴을 내밀어보세요 💪')
+                        analysis['posture_score'] -= 5  # 구부정한 자세 감점
+                    elif neck_forward < -10:  # 너무 뒤로 젖힌 경우
+                        analysis['feedback'].append('자연스럽게 어깨 힘을 빼보세요 😊')
+                    else:
+                        analysis['feedback'].append('당당한 자세를 유지하고 계세요 👍')
+                
+                if shoulder_diff < 50:  # 웹캠 각도 고려하여 더욱 관대하게
                     analysis['shoulder_balance'] = 'balanced'
                     analysis['posture_score'] += 25
-                    analysis['feedback'].append('어깨 위치가 균형잡혀 있어요 ✓')
+                    analysis['feedback'].append('어깨 균형이 좋습니다 ✓')
+                elif shoulder_diff < 80:  # 약간의 차이는 허용
+                    analysis['shoulder_balance'] = 'fair'
+                    analysis['posture_score'] += 20
+                    analysis['feedback'].append('어깨 균형이 양호합니다 👌')
                 else:
                     analysis['shoulder_balance'] = 'unbalanced'
-                    analysis['posture_score'] += 15  # 불균형이어도 더 많은 점수
-                    analysis['feedback'].append('어깨를 수평으로 맞춰보세요 ⚠')
+                    analysis['posture_score'] += 10
+                    analysis['feedback'].append('어깨 높이를 맞춰보세요 ⚠')
             elif len(shoulders) == 1:
                 # 한쪽 어깨만 보이는 경우도 부분 인정
                 analysis['shoulder_balance'] = 'partial'
