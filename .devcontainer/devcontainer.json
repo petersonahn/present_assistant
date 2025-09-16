@@ -1,0 +1,25 @@
+{
+    "name": "InterviewBuddy-Dev",
+    "dockerComposeFile": ["../docker-compose.yml"],
+    "service": "dev",
+    "workspaceFolder": "/work",
+    "features": {
+      "ghcr.io/devcontainers/features/common-utils:2": {},
+      "ghcr.io/devcontainers/features/python:1": { "version": "3.11" },
+      "ghcr.io/devcontainers/features/node:1": { "version": "20" }
+    },
+    "extensions": [
+      "ms-python.python",
+      "ms-python.vscode-pylance",
+      "ms-azuretools.vscode-docker"
+    ],
+    "postCreateCommand": "bash .devcontainer/postCreate.sh",
+    "forwardPorts": [
+      8080, 15000, 15010, 15011, 15012, 15020, 15030, 3306, 27017
+    ],
+    "updateRemoteUserUID": true,
+    "mounts": [
+      "source=${localWorkspaceFolder},target=/work,type=bind,consistency=cached"
+    ]
+  }
+  

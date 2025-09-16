@@ -1,0 +1,17 @@
+# MediaPipe 관련 패키지
+mediapipe>=0.10.0
+
+# 수치 계산 및 배열 처리
+numpy>=1.21.0
+
+# 데이터 시각화
+matplotlib>=3.5.0
+
+# 컴퓨터 비전 및 이미지 처리
+opencv-python>=4.5.0
+
+# 프로토콜 버퍼 (MediaPipe 의존성)
+protobuf>=3.19.0
+
+# 추가 의존성 패키지들
+Pillow>=8.0.0

@@ -1,0 +1,30 @@
+CREATE DATABASE IF NOT EXISTS interview_buddy
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE interview_buddy;
+
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  email VARCHAR(190) UNIQUE,
+  name  VARCHAR(120),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  ended_at TIMESTAMP NULL,
+  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS reports (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  session_id BIGINT NOT NULL,
+  overall_score INT,
+  speaking_rate_wpm INT,
+  smile_ratio FLOAT,
+  eye_contact_ratio FLOAT,
+  posture_score FLOAT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_session FOREIGN KEY (session_id) REFERENCES sessions(id)
+);

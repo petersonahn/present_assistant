@@ -1,0 +1,30 @@
+# Python venv
+venv/
+**/venv/
+.env
+__pycache__/
+*.pyc
+
+# Node/Frontend
+node_modules/
+dist/
+build/
+
+# Editor/OS
+.vscode/
+.DS_Store
+
+# Docker/logs
+*.log
+
+# SSL/keys (권장: 추적 금지)
+ssl/
+frontend/ssl/
+*.pem
+*.key
+*.crt.venv/
+venv/
+**/.venv/
+**/.venv/
+**/.venv/
+**/.venv/

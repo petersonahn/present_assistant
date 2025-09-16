@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+  <!-- 메인 컨테이너 -->
+  <defs>
+    <linearGradient id="cardGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.95" />
+      <stop offset="100%" style="stop-color:#f8fafc;stop-opacity:0.9" />
+    </linearGradient>
+    <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#34d399;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-opacity="0.1"/>
+    </filter>
+  </defs>
+
+  <!-- 헤더 -->
+  <rect x="20" y="20" width="1160" height="80" rx="16" fill="url(#cardGradient)" filter="url(#shadow)"/>
+  <text x="60" y="45" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#1f2937">🎯 실시간 면접 피드백 시스템</text>
+  <text x="60" y="75" font-family="Arial, sans-serif" font-size="14" fill="#6b7280">AI가 실시간으로 당신의 면접을 분석하고 피드백을 제공합니다</text>
+  
+  <!-- 녹화 상태 표시 -->
+  <circle cx="1100" cy="60" r="8" fill="#ef4444">
+    <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <text x="1120" y="65" font-family="Arial, sans-serif" font-size="12" fill="#ef4444" font-weight="bold">REC</text>
+
+  <!-- 비디오 피드 영역 -->
+  <rect x="20" y="120" width="700" height="520" rx="16" fill="url(#cardGradient)" filter="url(#shadow)"/>
+  <rect x="40" y="140" width="660" height="370" rx="12" fill="#1f2937"/>
+  
+  <!-- 비디오 플레이스홀더 -->
+  <rect x="40" y="140" width="660" height="370" rx="12" fill="#374151"/>
+  <circle cx="370" cy="325" r="40" fill="#6b7280" opacity="0.5"/>
+  <polygon points="360,305 360,345 390,325" fill="#9ca3af"/>
+  <text x="370" y="375" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#9ca3af">카메라 피드</text>
+
+  <!-- 얼굴 감지 오버레이 -->
+  <rect x="250" y="200" width="240" height="280" rx="8" fill="none" stroke="#10b981" stroke-width="2" stroke-dasharray="5,5">
+    <animate attributeName="stroke-dashoffset" values="0;10" dur="1s" repeatCount="indefinite"/>
+  </rect>
+  <text x="370" y="190" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#10b981" font-weight="bold">Face Detected ✓</text>
+
+  <!-- 랜드마크 포인트 -->
+  <circle cx="320" cy="250" r="3" fill="#fbbf24"/> <!-- 왼쪽 눈 -->
+  <circle cx="420" cy="250" r="3" fill="#fbbf24"/> <!-- 오른쪽 눈 -->
+  <circle cx="370" cy="290" r="3" fill="#f87171"/> <!-- 코 -->
+  <circle cx="370" cy="330" r="3" fill="#a78bfa"/> <!-- 입 -->
+
+  <!-- 실시간 피드백 오버레이 -->
+  <rect x="60" y="530" width="620" height="90" rx="12" fill="rgba(0,0,0,0.8)"/>
+  <text x="80" y="555" font-family="Arial, sans-serif" font-size="16" fill="#10b981" font-weight="bold">✅ 좋습니다!</text>
+  <text x="80" y="575" font-family="Arial, sans-serif" font-size="14" fill="#ffffff">• 자연스러운 미소를 유지하고 있어요</text>
+  <text x="80" y="595" font-family="Arial, sans-serif" font-size="14" fill="#ffffff">• 시선이 카메라를 잘 보고 있어요</text>
+  <text x="80" y="615" font-family="Arial, sans-serif" font-size="14" fill="#fbbf24">⚠ 말 속도를 조금 늦춰보세요</text>
+
+  <!-- 우측 분석 패널 -->
+  <rect x="740" y="120" width="440" height="520" rx="16" fill="url(#cardGradient)" filter="url(#shadow)"/>
+  
+  <!-- 감정 분석 -->
+  <text x="760" y="150" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#1f2937">😊 감정 분석</text>
+  <rect x="760" y="160" width="400" height="80" rx="8" fill="#f3f4f6"/>
+  
+  <text x="780" y="180" font-family="Arial, sans-serif" font-size="14" fill="#374151">자신감</text>
+  <rect x="780" y="185" width="360" height="8" rx="4" fill="#e5e7eb"/>
+  <rect x="780" y="185" width="288" height="8" rx="4" fill="url(#progressGradient)"/>
+  <text x="1120" y="195" font-family="Arial, sans-serif" font-size="12" fill="#10b981" text-anchor="end">80%</text>
+
+  <text x="780" y="210" font-family="Arial, sans-serif" font-size="14" fill="#374151">집중도</text>
+  <rect x="780" y="215" width="360" height="8" rx="4" fill="#e5e7eb"/>
+  <rect x="780" y="215" width="324" height="8" rx="4" fill="url(#progressGradient)"/>
+  <text x="1120" y="225" font-family="Arial, sans-serif" font-size="12" fill="#10b981" text-anchor="end">90%</text>
+
+  <!-- 자세 분석 -->
+  <text x="760" y="270" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#1f2937">🧍 자세 분석</text>
+  <rect x="760" y="280" width="400" height="100" rx="8" fill="#f3f4f6"/>
+  
+  <!-- 인체 실루엣 -->
+  <g transform="translate(780, 300)">
+    <ellipse cx="30" cy="15" rx="12" ry="15" fill="#6b7280"/> <!-- 머리 -->
+    <rect x="24" y="25" width="12" height="35" rx="6" fill="#6b7280"/> <!-- 몸통 -->
+    <rect x="15" y="30" width="8" height="25" rx="4" fill="#10b981"/> <!-- 왼팔 -->
+    <rect x="37" y="30" width="8" height="25" rx="4" fill="#10b981"/> <!-- 오른팔 -->
+  </g>
+  
+  <text x="850" y="320" font-family="Arial, sans-serif" font-size="14" fill="#374151">어깨 위치: 균형잡힘 ✓</text>
+  <text x="850" y="340" font-family="Arial, sans-serif" font-size="14" fill="#374151">등 자세: 곧게 펴짐 ✓</text>
+  <text x="850" y="360" font-family="Arial, sans-serif" font-size="14" fill="#f59e0b">손 제스처: 과도함 ⚠</text>
+
+  <!-- 음성 분석 -->
+  <text x="760" y="410" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#1f2937">🎤 음성 분석</text>
+  <rect x="760" y="420" width="400" height="120" rx="8" fill="#f3f4f6"/>
+  
+  <!-- 음성 파형 시각화 -->
+  <g transform="translate(780, 440)">
+    <rect x="0" y="30" width="4" height="20" fill="#3b82f6">
+      <animate attributeName="height" values="20;40;15;35;25" dur="2s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="8" y="25" width="4" height="30" fill="#3b82f6">
+      <animate attributeName="height" values="30;45;20;40;30" dur="2s" begin="0.2s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="16" y="35" width="4" height="15" fill="#3b82f6">
+      <animate attributeName="height" values="15;25;10;30;20" dur="2s" begin="0.4s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="24" y="20" width="4" height="40" fill="#3b82f6">
+      <animate attributeName="height" values="40;50;25;45;35" dur="2s" begin="0.6s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="32" y="30" width="4" height="20" fill="#3b82f6">
+      <animate attributeName="height" values="20;35;15;40;25" dur="2s" begin="0.8s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+  
+  <text x="880" y="460" font-family="Arial, sans-serif" font-size="14" fill="#374151">말 속도: 180 WPM (빠름)</text>
+  <text x="880" y="480" font-family="Arial, sans-serif" font-size="14" fill="#374151">음성 톤: 안정적</text>
+  <text x="880" y="500" font-family="Arial, sans-serif" font-size="14" fill="#374151">억양 변화: 적절함</text>
+  <text x="880" y="520" font-family="Arial, sans-serif" font-size="14" fill="#f59e0b">볼륨: 조금 낮음 ⚠</text>
+
+  <!-- 종합 점수 -->
+  <text x="760" y="570" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#1f2937">📊 종합 점수</text>
+  <rect x="760" y="580" width="400" height="50" rx="8" fill="#f3f4f6"/>
+  
+  <text x="780" y="600" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#10b981">85/100</text>
+  <text x="780" y="620" font-family="Arial, sans-serif" font-size="14" fill="#6b7280">전반적으로 좋은 면접 자세입니다!</text>
+
+  <!-- 실시간 알림 -->
+  <g transform="translate(900, 20)">
+    <rect x="0" y="0" width="200" height="40" rx="20" fill="#10b981" opacity="0.9">
+      <animate attributeName="opacity" values="0.9;0.6;0.9" dur="3s" repeatCount="indefinite"/>
+    </rect>
+    <text x="100" y="15" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white" font-weight="bold">💡 실시간 팁</text>
+    <text x="100" y="30" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">눈맞춤을 더 자주 해보세요</text>
+  </g>
+
+  <!-- 하단 컨트롤 -->
+  <rect x="20" y="660" width="1160" height="120" rx="16" fill="url(#cardGradient)" filter="url(#shadow)"/>
+  
+  <!-- 녹화 컨트롤 -->
+  <circle cx="100" cy="720" r="25" fill="#ef4444"/>
+  <rect x="90" y="710" width="20" height="20" fill="white"/>
+  <text x="140" y="725" font-family="Arial, sans-serif" font-size="14" fill="#374151">녹화 중지</text>
+
+  <!-- 일시정지 -->
+  <circle cx="250" cy="720" r="25" fill="#6b7280"/>
+  <rect x="240" y="710" width="6" height="20" fill="white"/>
+  <rect x="250" y="710" width="6" height="20" fill="white"/>
+  <text x="290" y="725" font-family="Arial, sans-serif" font-size="14" fill="#374151">일시정지</text>
+
+  <!-- 설정 -->
+  <circle cx="400" cy="720" r="25" fill="#3b82f6"/>
+  <g transform="translate(385, 705)">
+    <circle cx="15" cy="15" r="8" fill="none" stroke="white" stroke-width="2"/>
+    <circle cx="15" cy="15" r="3" fill="white"/>
+    <line x1="15" y1="2" x2="15" y2="6" stroke="white" stroke-width="2"/>
+    <line x1="15" y1="24" x2="15" y2="28" stroke="white" stroke-width="2"/>
+    <line x1="2" y1="15" x2="6" y2="15" stroke="white" stroke-width="2"/>
+    <line x1="24" y1="15" x2="28" y2="15" stroke="white" stroke-width="2"/>
+  </g>
+  <text x="440" y="725" font-family="Arial, sans-serif" font-size="14" fill="#374151">설정</text>
+
+  <!-- 리포트 생성 -->
+  <rect x="950" y="695" width="200" height="50" rx="25" fill="#10b981"/>
+  <text x="1050" y="715" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="white" font-weight="bold">📋 면접 리포트 생성</text>
+  <text x="1050" y="730" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white">상세한 분석 결과 확인</text>
+
+  <!-- 타이머 -->
+  <text x="600" y="700" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#1f2937" text-anchor="middle">15:23</text>
+  <text x="600" y="720" font-family="Arial, sans-serif" font-size="14" fill="#6b7280" text-anchor="middle">면접 진행 시간</text>
+
+  <!-- 배터리/시스템 상태 -->
+  <rect x="650" y="690" width="30" height="15" rx="3" fill="none" stroke="#6b7280" stroke-width="1"/>
+  <rect x="680" y="695" width="3" height="5" rx="1" fill="#6b7280"/>
+  <rect x="653" y="693" width="24" height="9" fill="#10b981"/>
+  <text x="690" y="705" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">85%</text>
+</svg>

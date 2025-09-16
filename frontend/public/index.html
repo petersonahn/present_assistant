@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 실시간 면접 피드백 시스템</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- 헤더 -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-bullseye"></i> 실시간 면접 피드백 시스템</h1>
+                <p>AI가 실시간으로 당신의 면접을 분석하고 피드백을 제공합니다</p>
+                <div class="status-indicator">
+                    <span id="connection-status" class="status offline">
+                        <i class="fas fa-circle"></i> 연결 확인 중...
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- 비디오 피드 영역 -->
+            <div class="video-section">
+                <div class="video-container">
+                    <video id="video" autoplay muted playsinline></video>
+                    <canvas id="canvas"></canvas>
+                    
+                    <!-- 실시간 피드백 오버레이 -->
+                    <div id="feedback-overlay" class="feedback-overlay">
+                        <div class="feedback-content">
+                            <div id="feedback-messages">
+                                <p class="feedback-message">카메라를 시작하세요!</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 컨트롤 패널 -->
+                <div class="controls">
+                    <button id="start-btn" class="btn btn-primary">
+                        <i class="fas fa-play"></i> 시작
+                    </button>
+                    <button id="stop-btn" class="btn btn-danger" disabled>
+                        <i class="fas fa-stop"></i> 중지
+                    </button>
+                    <button id="capture-btn" class="btn btn-secondary" disabled>
+                        <i class="fas fa-camera"></i> 캡처
+                    </button>
+                    <button id="settings-btn" class="btn btn-info">
+                        <i class="fas fa-cog"></i> 설정
+                    </button>
+                </div>
+
+                <!-- 타이머 -->
+                <div class="timer">
+                    <i class="fas fa-clock"></i>
+                    <span id="timer-display">00:00</span>
+                </div>
+            </div>
+
+            <!-- 분석 패널 -->
+            <div class="analysis-panel">
+                <!-- 감정 분석 -->
+                <div class="analysis-card">
+                    <h3><i class="fas fa-smile"></i> 감정 분석</h3>
+                    <div class="metric">
+                        <label>자신감</label>
+                        <div class="progress-bar">
+                            <div id="confidence-bar" class="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <span id="confidence-value">0%</span>
+                    </div>
+                    <div class="metric">
+                        <label>집중도</label>
+                        <div class="progress-bar">
+                            <div id="focus-bar" class="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <span id="focus-value">0%</span>
+                    </div>
+                </div>
+
+                <!-- 자세 분석 -->
+                <div class="analysis-card">
+                    <h3><i class="fas fa-male"></i> 자세 분석</h3>
+                    <div class="pose-indicators">
+                        <div class="indicator">
+                            <span class="indicator-label">어깨 균형</span>
+                            <span id="shoulder-status" class="indicator-value unknown">확인 중</span>
+                        </div>
+                        <div class="indicator">
+                            <span class="indicator-label">머리 위치</span>
+                            <span id="head-status" class="indicator-value unknown">확인 중</span>
+                        </div>
+                        <div class="indicator">
+                            <span class="indicator-label">팔 자세</span>
+                            <span id="arm-status" class="indicator-value unknown">확인 중</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 키포인트 정보 -->
+                    <div class="keypoints-info">
+                        <small>감지된 키포인트: <span id="keypoint-count">0</span>개</small>
+                    </div>
+                </div>
+
+                <!-- 종합 점수 -->
+                <div class="analysis-card">
+                    <h3><i class="fas fa-chart-line"></i> 종합 점수</h3>
+                    <div class="score-display">
+                        <div class="score-circle">
+                            <svg viewBox="0 0 36 36" class="circular-chart">
+                                <path class="circle-bg" d="M18 2.0845
+                                  a 15.9155 15.9155 0 0 1 0 31.831
+                                  a 15.9155 15.9155 0 0 1 0 -31.831"
+                                />
+                                <path id="score-circle" class="circle" stroke-dasharray="0, 100" d="M18 2.0845
+                                  a 15.9155 15.9155 0 0 1 0 31.831
+                                  a 15.9155 15.9155 0 0 1 0 -31.831"
+                                />
+                                <text x="18" y="20.35" class="percentage" id="score-text">0</text>
+                            </svg>
+                        </div>
+                        <p id="score-feedback" class="score-feedback">분석을 시작하세요</p>
+                    </div>
+                </div>
+
+                <!-- 실시간 통계 -->
+                <div class="analysis-card">
+                    <h3><i class="fas fa-chart-bar"></i> 실시간 통계</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">분석 프레임</span>
+                            <span id="total-frames" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">좋은 자세 비율</span>
+                            <span id="good-posture-rate" class="stat-value">0%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">평균 점수</span>
+                            <span id="average-score" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">세션 시간</span>
+                            <span id="session-time" class="stat-value">00:00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 실시간 알림 -->
+                <div class="notifications">
+                    <div id="notification" class="notification hidden">
+                        <i class="fas fa-lightbulb"></i>
+                        <span id="notification-text">실시간 팁</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 설정 모달 -->
+        <div id="settings-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-cog"></i> 설정</h3>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="setting-group">
+                        <label>분석 간격 (초)</label>
+                        <select id="analysis-interval">
+                            <option value="1000">1초</option>
+                            <option value="2000" selected>2초</option>
+                            <option value="3000">3초</option>
+                            <option value="5000">5초</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label>키포인트 표시</label>
+                        <input type="checkbox" id="show-keypoints" checked>
+                    </div>
+                    <div class="setting-group">
+                        <label>피드백 음성</label>
+                        <input type="checkbox" id="voice-feedback">
+                    </div>
+                    <div class="setting-group">
+                        <label>민감도</label>
+                        <input type="range" id="sensitivity" min="1" max="10" value="5">
+                        <span id="sensitivity-value">5</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" onclick="saveSettings()">저장</button>
+                    <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 로딩 오버레이 -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>AI 모델 로딩 중...</p>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

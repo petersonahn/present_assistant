@@ -1,0 +1,99 @@
+services:
+  dev:
+    image: mcr.microsoft.com/devcontainers/base:ubuntu
+    volumes:
+      - .:/work
+    working_dir: /work
+    depends_on:
+      - gateway
+      - v1-face
+      - v2-emotion
+      - v3-pose
+      - a1-prosody
+      - fb-aggregator
+      - mysql
+      - mongo
+      - frontend
+    command: sleep infinity
+    networks: [pub, priv]
+
+  gateway:
+    build: ./gateway
+    environment:
+      - MYSQL_URL=mysql://interview_user:interview_password@mysql:3306/interview_buddy
+      - MONGO_URL=mongodb://mongo_admin:mongo_password@mongo:27017/interview_buddy?authSource=admin
+    ports:
+      - "15000:15000"
+    depends_on: [mysql, mongo]
+    networks: [pub, priv]
+
+  v1-face:
+    build: ./services/v1-face
+    ports: ["15010:15010"]
+    networks: [priv]
+
+  v2-emotion:
+    build: ./services/v2-emotion
+    ports: ["15011:15011"]
+    networks: [priv]
+
+  v3-pose:
+    build: ./services/v3-pose
+    ports: ["15012:15012"]
+    networks: [priv]
+
+  a1-prosody:
+    build: ./services/a1-prosody
+    ports: ["15020:15020"]
+    networks: [priv]
+
+  fb-aggregator:
+    build: ./services/fb-aggregator
+    environment:
+      - MONGO_URL=mongodb://mongo_admin:mongo_password@mongo:27017/interview_buddy?authSource=admin
+    ports: ["15030:15030"]
+    depends_on: [mongo]
+    networks: [pub, priv]
+
+  frontend:
+    build: ./frontend
+    ports: ["8080:80", "8443:443"]
+    depends_on: [gateway, fb-aggregator, v3-pose]
+    networks: [pub, priv]
+
+  mysql:
+    image: mysql:8.4
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=interview_buddy
+      - MYSQL_USER=interview_user
+      - MYSQL_PASSWORD=interview_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./db/mysql-init.d:/docker-entrypoint-initdb.d:ro
+    networks: [priv]
+
+  mongo:
+    image: mongo:6
+    restart: always
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=mongo_admin
+      - MONGO_INITDB_ROOT_PASSWORD=mongo_password
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - ./db/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks: [priv]
+
+networks:
+  pub: {}
+  priv:
+    internal: true
+
+volumes:
+  mysql-data: {}
+  mongo-data: {}
