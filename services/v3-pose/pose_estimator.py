@@ -58,6 +58,12 @@ class HumanPoseEstimator:
         self.input_height = self.input_shape[2]  # 256
         self.input_width = self.input_shape[3]   # 456
         
+        # 떨림 감지를 위한 이전 프레임 키포인트 저장
+        self.prev_keypoints = {}
+        self.keypoint_history = {}  # 최근 5프레임 저장
+        self.tremor_threshold = 8.0  # 떨림 감지 임계값 (픽셀) - 더 민감하게 조정
+        self.tremor_frame_count = 0  # 떨림 감지 프레임 카운터
+        
         logger.info(f"모델 로드 완료: {model_xml_path}")
         logger.info(f"입력 크기: {self.input_width}x{self.input_height}")
         logger.info(f"디바이스: {device}")
@@ -196,7 +202,7 @@ class HumanPoseEstimator:
         # 후처리
         keypoints = self.postprocess_output(output, (original_height, original_width))
         
-        # 포즈 분석
+        # 포즈 분석 (떨림 감지 포함)
         pose_analysis = self.analyze_pose(keypoints)
         
         return {
@@ -218,8 +224,9 @@ class HumanPoseEstimator:
         analysis = {
             'posture_score': 0,
             'shoulder_balance': 'unknown',
-            'head_position': 'unknown',
+            'head_tilt': 'unknown',  # 머리 위치 → 고개 기울임으로 명확화
             'arm_position': 'unknown',
+            'tremor_detected': False,  # 떨림 감지 추가
             'feedback': []
         }
         
@@ -317,44 +324,54 @@ class HumanPoseEstimator:
                     analysis['posture_score'] += 10
                     analysis['feedback'].append('팔 위치로 어깨 균형을 추정했습니다')
             
-            # 목/머리 위치 체크 (더 유연한 분석)
+            # 고개 기울임 분석 (좌우 기울임 감지)
             head_detected = False
-            head_points = [name for name in kp_dict.keys() if name in ['nose', 'l_eye', 'r_eye', 'l_ear', 'r_ear']]
-            logger.info(f"감지된 머리 키포인트: {head_points}")
-            logger.info(f"목 키포인트 존재: {'neck' in kp_dict}")
+            face_points = [name for name in kp_dict.keys() if name in ['l_eye', 'r_eye', 'l_ear', 'r_ear']]
+            logger.info(f"감지된 얼굴 키포인트: {face_points}")
             
-            if 'neck' in kp_dict and head_points:
-                neck = kp_dict['neck']
-                # 가장 신뢰도 높은 얼굴 키포인트 사용
-                best_head_point = max([kp_dict[name] for name in head_points], key=lambda x: x.get('confidence', 0))
+            # 양쪽 눈이 모두 감지된 경우 고개 기울임 분석
+            if 'l_eye' in kp_dict and 'r_eye' in kp_dict:
+                left_eye = kp_dict['l_eye']
+                right_eye = kp_dict['r_eye']
                 
-                # 목과 얼굴의 수직 정렬 체크
-                head_tilt = abs(neck['x'] - best_head_point['x'])
+                # 두 눈의 높이 차이로 고개 기울임 계산
+                eye_height_diff = abs(left_eye['y'] - right_eye['y'])
+                eye_distance = abs(left_eye['x'] - right_eye['x'])
                 
-                if head_tilt < 50:  # 더욱 관대한 임계값
-                    analysis['head_position'] = 'straight'
-                    analysis['posture_score'] += 25
-                    analysis['feedback'].append('머리 위치가 바른 자세예요 ✓')
-                else:
-                    analysis['head_position'] = 'tilted'
-                    analysis['posture_score'] += 15
-                    analysis['feedback'].append('머리를 곧게 세워보세요 ⚠')
-                head_detected = True
-            elif head_points and len(head_points) >= 2:
-                # 목이 없어도 얼굴 키포인트들로 추정
-                analysis['head_position'] = 'estimated'
-                analysis['posture_score'] += 15
-                analysis['feedback'].append('얼굴 키포인트로 머리 위치를 추정했습니다')
-                head_detected = True
-            elif 'neck' in kp_dict:
-                # 목만 있는 경우
-                analysis['head_position'] = 'partial'
+                # 기울임 각도 계산 (각도가 클수록 고개가 많이 기울어짐)
+                if eye_distance > 0:
+                    tilt_ratio = eye_height_diff / eye_distance
+                    
+                    if tilt_ratio < 0.15:  # 약 8도 미만
+                        analysis['head_tilt'] = 'straight'
+                        analysis['posture_score'] += 25
+                        analysis['feedback'].append('고개를 바르게 들고 계세요 ✓')
+                    elif tilt_ratio < 0.3:  # 약 17도 미만
+                        analysis['head_tilt'] = 'slightly_tilted'
+                        analysis['posture_score'] += 15
+                        analysis['feedback'].append('고개가 약간 기울어져 있어요 ⚠')
+                    else:
+                        analysis['head_tilt'] = 'tilted'
+                        analysis['posture_score'] += 5
+                        analysis['feedback'].append('고개를 바로 세워보세요 📐')
+                    head_detected = True
+                    
+            # 한쪽 눈만 감지된 경우
+            elif 'l_eye' in kp_dict or 'r_eye' in kp_dict:
+                analysis['head_tilt'] = 'partial'
                 analysis['posture_score'] += 10
-                analysis['feedback'].append('목 키포인트만 감지되었습니다')
+                analysis['feedback'].append('정면을 향해 주세요')
+                head_detected = True
+                
+            # 목만 감지된 경우
+            elif 'neck' in kp_dict:
+                analysis['head_tilt'] = 'neck_only'
+                analysis['posture_score'] += 5
+                analysis['feedback'].append('얼굴이 잘 보이도록 조정해주세요')
                 head_detected = True
             
             if not head_detected:
-                analysis['feedback'].append('머리 위치를 분석할 수 없습니다')
+                analysis['feedback'].append('고개 기울임을 분석할 수 없습니다')
             
             # 팔 위치 체크 (감지된 키포인트 활용)
             arm_parts = [name for name in kp_dict.keys() if any(part in name for part in ['shoulder', 'elbow', 'wrist'])]
@@ -427,8 +444,16 @@ class HumanPoseEstimator:
             if not arm_detected:
                 analysis['feedback'].append('팔 키포인트를 감지하지 못했습니다')
             
+            # 떨림 감지 분석
+            tremor_detected = self.detect_tremor(keypoints)
+            analysis['tremor_detected'] = tremor_detected
+            
+            if tremor_detected:
+                analysis['posture_score'] -= 10  # 떨림 감지 시 감점
+                analysis['feedback'].append('긴장을 풀고 자연스럽게 앉아보세요 🧘‍♀️')
+            
             # 점수 상한 설정
-            analysis['posture_score'] = min(100, analysis['posture_score'])
+            analysis['posture_score'] = min(100, max(0, analysis['posture_score']))  # 0-100 범위
             
             # 상반신 중심 전체적인 피드백
             if analysis['posture_score'] >= 80:
@@ -447,41 +472,164 @@ class HumanPoseEstimator:
         
         return analysis
     
+    def detect_tremor(self, keypoints: List[Dict]) -> bool:
+        """
+        키포인트 위치 변화를 통한 떨림 감지 (개선된 버전)
+        
+        Args:
+            keypoints: 현재 프레임의 키포인트 리스트
+            
+        Returns:
+            떨림 감지 여부
+        """
+        # 떨림 감지 대상 키포인트 (손목을 주로, 팔꿈치와 어깨도 포함)
+        tremor_points = ['l_wrist', 'r_wrist', 'l_elbow', 'r_elbow', 'l_shoulder', 'r_shoulder']
+        
+        current_kp = {kp['name']: (kp['x'], kp['y']) for kp in keypoints if kp['name'] in tremor_points}
+        
+        # 디버깅: 감지된 키포인트 출력 (매 10프레임마다만)
+        if hasattr(self, '_tremor_debug_counter'):
+            self._tremor_debug_counter += 1
+        else:
+            self._tremor_debug_counter = 1
+            
+        if self._tremor_debug_counter % 10 == 0:
+            logger.info(f"떨림 감지 대상 키포인트: {list(current_kp.keys())}")
+        
+        # 첫 번째 프레임이거나 키포인트가 부족한 경우
+        if len(current_kp) < 1 or not self.prev_keypoints:  # 조건 완화: 1개만 있어도 분석
+            self.prev_keypoints = current_kp
+            logger.info("첫 프레임 또는 키포인트 부족 - 떨림 감지 건너뜀")
+            return False
+        
+        tremor_detected = False
+        total_movement = 0
+        movement_count = 0
+        high_movement_count = 0  # 높은 움직임을 보이는 키포인트 수
+        
+        # 각 키포인트의 이동량 계산
+        for name, (x, y) in current_kp.items():
+            if name in self.prev_keypoints:
+                prev_x, prev_y = self.prev_keypoints[name]
+                movement = ((x - prev_x) ** 2 + (y - prev_y) ** 2) ** 0.5
+                total_movement += movement
+                movement_count += 1
+                
+                # 디버깅: 각 키포인트의 움직임 출력 (큰 움직임만)
+                if movement > 5.0:  # 5픽셀 이상의 움직임만 로그
+                    logger.info(f"{name} 움직임: {movement:.2f}px")
+                
+                # 즉시 떨림 감지 (단일 프레임에서 큰 움직임)
+                if movement > self.tremor_threshold:
+                    high_movement_count += 1
+                    logger.info(f"⚠️ {name}에서 큰 움직임 감지: {movement:.2f}px")
+                
+                # 키포인트 히스토리 업데이트
+                if name not in self.keypoint_history:
+                    self.keypoint_history[name] = []
+                
+                self.keypoint_history[name].append((x, y))
+                # 최근 3프레임만 유지 (더 빠른 반응)
+                if len(self.keypoint_history[name]) > 3:
+                    self.keypoint_history[name].pop(0)
+                
+                # 최근 프레임들의 변화량 분석 (조건 완화)
+                if len(self.keypoint_history[name]) >= 2:  # 2프레임만 있어도 분석
+                    recent_movements = []
+                    for i in range(1, len(self.keypoint_history[name])):
+                        prev_pos = self.keypoint_history[name][i-1]
+                        curr_pos = self.keypoint_history[name][i]
+                        move = ((curr_pos[0] - prev_pos[0]) ** 2 + (curr_pos[1] - prev_pos[1]) ** 2) ** 0.5
+                        recent_movements.append(move)
+                    
+                    # 평균 이동량이 임계값을 초과하는 경우 (조건 완화)
+                    avg_movement = sum(recent_movements) / len(recent_movements)
+                    max_movement = max(recent_movements)
+                    
+                    # 더 관대한 조건: 평균이 임계값 초과하거나 최대값이 임계값*1.5 초과
+                    if avg_movement > self.tremor_threshold * 0.7 or max_movement > self.tremor_threshold:
+                        tremor_detected = True
+                        logger.info(f"🔴 {name}에서 떨림 패턴 감지 - 평균: {avg_movement:.2f}, 최대: {max_movement:.2f}")
+        
+        # 전체 평균 이동량 분석 (조건 완화)
+        if movement_count > 0:
+            avg_total_movement = total_movement / movement_count
+            
+            # 큰 움직임이 있을 때만 로그 출력
+            if avg_total_movement > 3.0:
+                logger.info(f"전체 평균 움직임: {avg_total_movement:.2f}px")
+            
+            # 더 민감한 전체 떨림 감지
+            if avg_total_movement > self.tremor_threshold * 0.8:
+                tremor_detected = True
+                logger.info(f"🔴 전체 떨림 감지: 평균 이동량 {avg_total_movement:.2f}px")
+        
+        # 다중 키포인트에서 동시에 큰 움직임이 있는 경우
+        if high_movement_count >= 2:
+            tremor_detected = True
+            logger.info(f"🔴 다중 키포인트 떨림 감지: {high_movement_count}개 키포인트에서 큰 움직임")
+        
+        # 떨림 감지 결과 로그 (상태 변화시만)
+        prev_tremor_state = getattr(self, '_prev_tremor_detected', False)
+        if tremor_detected != prev_tremor_state:
+            if tremor_detected:
+                self.tremor_frame_count = 1
+                logger.info(f"🚨 떨림 감지 시작!")
+            else:
+                logger.info(f"✅ 떨림 종료 - 안정 상태로 복귀")
+                self.tremor_frame_count = 0
+        elif tremor_detected:
+            self.tremor_frame_count += 1
+            # 연속 떨림 감지시 5프레임마다만 로그
+            if self.tremor_frame_count % 5 == 0:
+                logger.info(f"🚨 지속적인 떨림 (연속 {self.tremor_frame_count}프레임)")
+        
+        self._prev_tremor_detected = tremor_detected
+        
+        # 현재 키포인트를 다음 프레임을 위해 저장
+        self.prev_keypoints = current_kp
+        
+        return tremor_detected
+    
     def draw_pose(self, image: np.ndarray, keypoints: List[Dict]) -> np.ndarray:
         """
-        이미지에 포즈 키포인트와 스켈레톤 그리기
+        이미지에 포즈 키포인트와 스켈레톤 그리기 (면접 모드에서는 비활성화)
         
         Args:
             image: 원본 이미지
             keypoints: 키포인트 리스트
             
         Returns:
-            포즈가 그려진 이미지
+            원본 이미지 (키포인트 그리기 비활성화)
         """
-        result_image = image.copy()
+        # 면접 모드에서는 원본 이미지를 그대로 반환 (키포인트 그리기 비활성화)
+        return image.copy()
         
-        # 키포인트를 인덱스로 매핑
-        kp_dict = {kp['id']: kp for kp in keypoints}
-        
-        # 스켈레톤 연결선 그리기
-        for pair in self.POSE_PAIRS:
-            if pair[0] in kp_dict and pair[1] in kp_dict:
-                point1 = kp_dict[pair[0]]
-                point2 = kp_dict[pair[1]]
-                
-                cv2.line(result_image, 
-                        (point1['x'], point1['y']), 
-                        (point2['x'], point2['y']), 
-                        (0, 255, 0), 2)
-        
-        # 키포인트 그리기
-        for kp in keypoints:
-            cv2.circle(result_image, (kp['x'], kp['y']), 5, (0, 0, 255), -1)
-            cv2.putText(result_image, f"{kp['name']}", 
-                       (kp['x'] + 5, kp['y'] - 5),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
-        
-        return result_image
+        # 아래 코드는 개발자 모드에서만 사용 (현재 비활성화)
+        # result_image = image.copy()
+        # 
+        # # 키포인트를 인덱스로 매핑
+        # kp_dict = {kp['id']: kp for kp in keypoints}
+        # 
+        # # 스켈레톤 연결선 그리기
+        # for pair in self.POSE_PAIRS:
+        #     if pair[0] in kp_dict and pair[1] in kp_dict:
+        #         point1 = kp_dict[pair[0]]
+        #         point2 = kp_dict[pair[1]]
+        #         
+        #         cv2.line(result_image, 
+        #                 (point1['x'], point1['y']), 
+        #                 (point2['x'], point2['y']), 
+        #                 (0, 255, 0), 2)
+        # 
+        # # 키포인트 그리기
+        # for kp in keypoints:
+        #     cv2.circle(result_image, (kp['x'], kp['y']), 5, (0, 0, 255), -1)
+        #     cv2.putText(result_image, f"{kp['name']}", 
+        #                (kp['x'] + 5, kp['y'] - 5),
+        #                cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+        # 
+        # return result_image
 
 
 def create_pose_estimator() -> HumanPoseEstimator:
@@ -493,7 +641,7 @@ def create_pose_estimator() -> HumanPoseEstimator:
 
 
 if __name__ == "__main__":
-    # 테스트 코드
+    # 테스트 코드 (시각화 완전 비활성화)
     estimator = create_pose_estimator()
     
     # 웹캠으로 테스트
@@ -507,17 +655,20 @@ if __name__ == "__main__":
         # 포즈 추정
         result = estimator.estimate_pose(frame)
         
-        # 결과 그리기
-        pose_image = estimator.draw_pose(frame, result['keypoints'])
+        # 면접 모드: 시각화 완전 비활성화 - 원본 프레임만 표시
+        pose_image = frame.copy()  # 원본 이미지 그대로 사용
         
-        # 피드백 표시
-        y_offset = 30
-        for feedback in result['analysis']['feedback']:
-            cv2.putText(pose_image, feedback, (10, y_offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            y_offset += 25
+        # 피드백 표시도 비활성화 (면접 환경에서는 방해 요소 제거)
+        # y_offset = 30
+        # for feedback in result['analysis']['feedback']:
+        #     cv2.putText(pose_image, feedback, (10, y_offset),
+        #                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        #     y_offset += 25
         
-        cv2.imshow('Pose Estimation', pose_image)
+        # 콘솔에만 결과 출력 (시각적 방해 없이 디버깅용)
+        print(f"키포인트: {len(result['keypoints'])}개, 점수: {result['analysis']['posture_score']}/100")
+        
+        cv2.imshow('Pose Estimation - Interview Mode', pose_image)
         
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

@@ -44,7 +44,10 @@ class InterviewFeedbackSystem {
             shoulderStatus: document.getElementById('shoulder-status'),
             headStatus: document.getElementById('head-status'),
             armStatus: document.getElementById('arm-status'),
+            tremorStatus: document.getElementById('tremor-status'),
             keypointCount: document.getElementById('keypoint-count'),
+            qualityFill: document.getElementById('quality-fill'),
+            qualityText: document.getElementById('quality-text'),
             
             scoreCircle: document.getElementById('score-circle'),
             scoreText: document.getElementById('score-text'),
@@ -228,6 +231,9 @@ class InterviewFeedbackSystem {
     }
     
     async analyzePose() {
+        // 캔버스 완전 클리어 (이전 그림 요소 모두 제거)
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
         // 비디오에서 프레임 캡처
         this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
         
@@ -250,7 +256,8 @@ class InterviewFeedbackSystem {
             
             if (result.success) {
                 this.updateAnalysisResults(result.data);
-                this.drawKeypoints(result.data.keypoints);
+                // 면접 모드에서는 키포인트 그리기 비활성화
+                // this.drawKeypoints(result.data.keypoints);
             } else {
                 console.error('Analysis failed:', result);
             }
@@ -267,6 +274,9 @@ class InterviewFeedbackSystem {
         // 키포인트 개수 업데이트
         this.elements.keypointCount.textContent = keypoints.length;
         
+        // 키포인트 품질 업데이트
+        this.updateKeypointQuality(keypoints.length);
+        
         // 자세 분석 업데이트
         this.updatePostureIndicators(analysis);
         
@@ -280,12 +290,14 @@ class InterviewFeedbackSystem {
         this.updateRealTimeStats(analysis);
         
         // 알림 표시 (중요한 피드백만)
-        if (analysis.feedback.length > 0 && analysis.posture_score < 50) {
+        if (analysis.tremor_detected) {
+            this.showNotification('긴장을 풀고 자연스럽게 앉아보세요 🧘‍♀️');
+        } else if (analysis.feedback.length > 0 && analysis.posture_score < 50) {
             this.showNotification(analysis.feedback[0]);
         }
         
-        // 키포인트 시각화
-        this.visualizeKeypoints(keypoints);
+        // 면접 모드에서는 키포인트 시각화 완전 비활성화
+        // this.visualizeKeypoints(keypoints);
         
         // 감정 분석은 별도로 처리 (향후 구현)
         // this.updateEmotionAnalysis();
@@ -296,13 +308,18 @@ class InterviewFeedbackSystem {
         this.elements.shoulderStatus.textContent = this.getStatusText(analysis.shoulder_balance);
         this.elements.shoulderStatus.className = `indicator-value ${analysis.shoulder_balance}`;
         
-        // 머리 위치
-        this.elements.headStatus.textContent = this.getStatusText(analysis.head_position);
-        this.elements.headStatus.className = `indicator-value ${analysis.head_position}`;
+        // 고개 기울임
+        this.elements.headStatus.textContent = this.getStatusText(analysis.head_tilt);
+        this.elements.headStatus.className = `indicator-value ${analysis.head_tilt}`;
         
         // 팔 자세
         this.elements.armStatus.textContent = this.getStatusText(analysis.arm_position);
         this.elements.armStatus.className = `indicator-value ${analysis.arm_position}`;
+        
+        // 떨림 감지
+        const tremorStatus = analysis.tremor_detected ? 'tremor_detected' : 'no_tremor';
+        this.elements.tremorStatus.textContent = this.getStatusText(tremorStatus);
+        this.elements.tremorStatus.className = `indicator-value ${tremorStatus}`;
     }
     
     getStatusText(status) {
@@ -314,12 +331,35 @@ class InterviewFeedbackSystem {
             'estimated': '추정됨 ⚡',
             'detected': '감지됨 🔍',
             'straight': '바른자세 ✓',
+            'slightly_tilted': '약간기울어짐 ⚠',
             'tilted': '기울어짐 ⚠',
+            'neck_only': '목만감지 ◐',
             'natural': '자연스러움 ✓',
             'raised': '부자연스러움 ⚠',
-            'unknown': '감지중...'
+            'tremor_detected': '떨림감지 🔴',
+            'no_tremor': '안정됨 ✓',
+            'unknown': '분석중...'
         };
-        return statusMap[status] || '감지중...';
+        return statusMap[status] || '분석중...';
+    }
+    
+    updateKeypointQuality(keypointCount) {
+        // 18개 키포인트 중 감지된 개수로 품질 계산
+        const maxKeypoints = 18;
+        const quality = Math.round((keypointCount / maxKeypoints) * 100);
+        
+        // 품질 바 업데이트
+        this.elements.qualityFill.style.width = `${quality}%`;
+        this.elements.qualityText.textContent = `${quality}%`;
+        
+        // 품질에 따른 색상 변경
+        if (quality >= 80) {
+            this.elements.qualityFill.style.background = 'linear-gradient(90deg, var(--success-color), #22c55e)';
+        } else if (quality >= 50) {
+            this.elements.qualityFill.style.background = 'linear-gradient(90deg, var(--warning-color), #fbbf24)';
+        } else {
+            this.elements.qualityFill.style.background = 'linear-gradient(90deg, var(--danger-color), #f87171)';
+        }
     }
     
     updatePostureScore(score) {
@@ -391,14 +431,14 @@ class InterviewFeedbackSystem {
     }
     
     drawKeypoints(keypoints) {
-        // 면접 모드에서는 키포인트 시각화 비활성화
-        if (!this.settings.showKeypoints) return;
-        
-        // 캔버스 클리어만 수행 (키포인트는 그리지 않음)
+        // 항상 캔버스 클리어 (이전 그림 요소 제거)
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 키포인트와 스켈레톤 그리기 비활성화 (면접 환경에서 방해 요소 제거)
-        // 개발자 모드에서만 필요할 때 활성화 가능
+        // 면접 모드에서는 키포인트 시각화 완전 비활성화
+        if (!this.settings.showKeypoints) return;
+        
+        // 개발자 모드에서만 키포인트 그리기 (현재는 비활성화)
+        // this.drawActualKeypoints(keypoints);
     }
     
     getKeypointColor(name) {
@@ -420,6 +460,10 @@ class InterviewFeedbackSystem {
     }
     
     drawSkeleton(keypoints) {
+        // 면접 모드에서는 스켈레톤 그리기 완전 비활성화
+        if (!this.settings.showKeypoints) return;
+        
+        // 개발자 모드에서만 스켈레톤 그리기
         const connections = [
             ['l_shoulder', 'r_shoulder'],
             ['l_shoulder', 'l_elbow'],
@@ -537,33 +581,86 @@ class InterviewFeedbackSystem {
     }
     
     visualizeKeypoints(keypoints) {
-        // 캔버스에 키포인트 시각화 - 기존 drawKeypoints와 통합
-        this.drawKeypoints(keypoints);
+        // 면접 모드에서는 모든 시각화 비활성화
+        this.drawKeypoints(keypoints);  // 이미 내부에서 비활성화 처리됨
         
-        // 추가적인 시각적 효과
-        if (keypoints.length > 0) {
+        // 시각적 효과도 면접 모드에서는 비활성화
+        if (this.settings.showKeypoints && keypoints.length > 0) {
             this.addVisualEffects(keypoints);
         }
     }
     
     addVisualEffects(keypoints) {
-        // 포즈 품질에 따른 시각적 피드백
-        const nosePoint = keypoints.find(kp => kp.name === 'nose');
-        const neckPoint = keypoints.find(kp => kp.name === 'neck');
+        // 면접 모드에서는 시각적 효과 완전 비활성화
+        // 개발자 모드에서만 필요시 활성화 가능
+        return;
         
-        if (nosePoint && neckPoint) {
-            // 머리 위치 표시
-            const headTilt = Math.abs(nosePoint.x - neckPoint.x);
-            const color = headTilt < 30 ? '#10b981' : '#f59e0b';
-            
-            this.ctx.beginPath();
-            this.ctx.arc(nosePoint.x, nosePoint.y, 15, 0, 2 * Math.PI);
-            this.ctx.strokeStyle = color;
-            this.ctx.lineWidth = 3;
-            this.ctx.stroke();
-        }
+        // 아래 코드는 개발자 모드에서만 사용
+        // const nosePoint = keypoints.find(kp => kp.name === 'nose');
+        // const neckPoint = keypoints.find(kp => kp.name === 'neck');
+        // ... (시각적 효과 코드)
     }
 }
+
+// === fb-aggregator 실시간 피드백 수신(WebSocket) ===
+(function connectFeedbackWS(){
+    const SESSION_ID = 'demo-123'; // TODO: 실제 세션ID로 교체
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const WS_URL = `${proto}://${location.host}/ws/?session_id=${encodeURIComponent(SESSION_ID)}`;
+  
+    let ws;
+    function open(){
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => console.log('[fb-aggregator] WS connected');
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data); 
+          // 예시 payload 가정:
+          // { overall: 78, voice: 80, face: 74, pose: 79, tips: ["말속도가 빨라요", "시선 고정 좋아요"], ts: "..." }
+          renderAggregatorFeedback(data);
+        } catch (_) { /* 텍스트면 무시 */ }
+      };
+      ws.onclose = () => setTimeout(open, 1200); // 재연결
+      ws.onerror = () => ws.close();
+    }
+    open();
+  
+    // 화면 반영(이미 있는 DOM을 재사용)
+    function renderAggregatorFeedback(fb){
+      // 종합 점수 원형 그래프
+      if (typeof fb.overall === 'number') {
+        const circle = document.getElementById('score-circle');
+        const text = document.getElementById('score-text');
+        const label = document.getElementById('score-feedback');
+        circle.style.strokeDasharray = `${fb.overall}, 100`;
+        text.textContent = fb.overall;
+        if (fb.overall >= 80) { circle.style.stroke = 'var(--success-color)'; label.textContent = '훌륭한 자세입니다! 👍'; }
+        else if (fb.overall >= 60) { circle.style.stroke = 'var(--warning-color)'; label.textContent = '좋은 자세입니다 👌'; }
+        else { circle.style.stroke = 'var(--danger-color)'; label.textContent = '자세 개선이 필요해요 📐'; }
+      }
+  
+      // 세부 스코어(있으면)
+      if (typeof fb.voice === 'number') document.getElementById('confidence-bar').style.width = `${fb.voice}%`;
+      if (typeof fb.voice === 'number') document.getElementById('confidence-value').textContent = `${fb.voice}%`;
+      if (typeof fb.face === 'number')  document.getElementById('focus-bar').style.width = `${fb.face}%`;
+      if (typeof fb.face === 'number')  document.getElementById('focus-value').textContent = `${fb.face}%`;
+  
+      // 메시지(최근 3개만)
+      if (Array.isArray(fb.tips)) {
+        const wrap = document.getElementById('feedback-messages');
+        fb.tips.slice(0,3).forEach(msg=>{
+          const p = document.createElement('p');
+          p.className = 'feedback-message';
+          p.textContent = msg;
+          wrap.insertBefore(p, wrap.firstChild);
+        });
+        // 5개 초과시 오래된 메시지 삭제
+        const nodes = wrap.children;
+        if (nodes.length > 5) { for (let i=5;i<nodes.length;i++) nodes[i].remove(); }
+      }
+    }
+  })();
+  
 
 // 설정 저장 함수 (전역)
 function saveSettings() {

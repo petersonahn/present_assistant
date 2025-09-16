@@ -17,7 +17,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
 class SimulatedRealtimeAnalyzer:
-    def __init__(self, model_path='./models/face_landmarker.task', test_image='face.jpeg'):
+    def __init__(self, model_path='./models/face_landmarker.task', test_image='face_psy.jpg'):
         """시뮬레이션 모드 분석기를 초기화합니다."""
         self.model_path = model_path
         self.test_image_path = test_image

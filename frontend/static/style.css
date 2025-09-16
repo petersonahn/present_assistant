@@ -130,6 +130,7 @@ body {
     top: 0;
     left: 0;
     pointer-events: none;
+    display: none; /* 면접 모드에서 캔버스 완전 숨김 */
 }
 
 .feedback-overlay {
@@ -291,57 +292,184 @@ body {
     font-weight: 600;
 }
 
-/* 자세 지표 */
+/* 자세 분석 - 개편된 디자인 */
 .pose-indicators {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 15px;
+    display: grid;
+    gap: 20px;
+    margin-bottom: 20px;
 }
 
 .indicator {
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    border-left: 4px solid var(--primary-color);
+    transition: all 0.3s ease;
+}
+
+.indicator:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateY(-2px);
+}
+
+.indicator-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 8px 12px;
-    background: #f3f4f6;
-    border-radius: 6px;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.indicator-header i {
+    color: var(--primary-color);
+    font-size: 1.1em;
 }
 
 .indicator-label {
-    font-size: 0.9rem;
-    color: var(--dark-color);
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.95em;
 }
 
 .indicator-value {
-    font-size: 0.9rem;
+    display: block;
     font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 4px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    margin: 8px 0;
+    text-align: center;
+    transition: all 0.3s ease;
 }
 
+.indicator-description {
+    font-size: 0.75em;
+    color: var(--text-secondary);
+    opacity: 0.8;
+    line-height: 1.3;
+}
+
+/* 상태별 색상 */
 .indicator-value.balanced,
 .indicator-value.straight,
 .indicator-value.natural {
-    background: #dcfce7;
-    color: var(--success-color);
+    background: linear-gradient(135deg, var(--success-color), #34d399);
+    color: white;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.indicator-value.fair,
+.indicator-value.slightly_tilted,
+.indicator-value.partial,
+.indicator-value.estimated,
+.indicator-value.detected {
+    background: linear-gradient(135deg, var(--warning-color), #fbbf24);
+    color: white;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
 }
 
 .indicator-value.unbalanced,
 .indicator-value.tilted,
 .indicator-value.raised {
-    background: #fef3c7;
-    color: var(--warning-color);
+    background: linear-gradient(135deg, var(--danger-color), #f87171);
+    color: white;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.indicator-value.neck_only {
+    background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+    color: white;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
 }
 
 .indicator-value.unknown {
-    background: #f3f4f6;
-    color: #6b7280;
+    background: rgba(107, 114, 128, 0.8);
+    color: white;
+    animation: pulse 2s infinite;
 }
 
+/* 떨림 감지 특별 스타일 */
+.indicator-value.tremor_detected {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    animation: shake 0.5s ease-in-out infinite alternate;
+    box-shadow: 0 2px 12px rgba(239, 68, 68, 0.4);
+}
+
+.indicator-value.no_tremor {
+    background: linear-gradient(135deg, var(--success-color), #22c55e);
+    color: white;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+}
+
+/* 키포인트 정보 섹션 */
 .keypoints-info {
-    text-align: center;
-    color: #6b7280;
+    margin-top: 20px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    border-top: 2px solid var(--primary-color);
+}
+
+.keypoint-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 0.9em;
+}
+
+.keypoint-summary i {
+    color: var(--primary-color);
+}
+
+.keypoint-summary strong {
+    color: var(--primary-color);
+    font-size: 1.1em;
+}
+
+.detection-quality {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85em;
+}
+
+.quality-label {
+    color: var(--text-secondary);
+    min-width: 60px;
+}
+
+.quality-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.quality-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--danger-color), var(--warning-color), var(--success-color));
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+#quality-text {
+    color: var(--text-primary);
+    font-weight: 600;
+    min-width: 35px;
+}
+
+/* 애니메이션 */
+@keyframes shake {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(2px); }
+}
+
+@keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
 }
 
 /* 점수 원형 차트 */

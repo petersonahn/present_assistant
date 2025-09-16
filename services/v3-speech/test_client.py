@@ -440,6 +440,8 @@ def interactive_mode():
 
 def main():
     """메인 함수"""
+    global BASE_URL
+    
     parser = argparse.ArgumentParser(description="v3-speech 서비스 테스트 클라이언트")
     parser.add_argument("--url", default=BASE_URL, help="서비스 URL")
     parser.add_argument("--test", choices=["basic", "realtime", "interactive"], 
@@ -450,7 +452,6 @@ def main():
     
     args = parser.parse_args()
     
-    global BASE_URL
     BASE_URL = args.url
     
     print(f"🎤 v3-speech 테스트 클라이언트")

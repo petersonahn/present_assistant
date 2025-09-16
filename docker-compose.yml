@@ -12,8 +12,6 @@ services:
       - v3-speech
       - a1-prosody
       - fb-aggregator
-      - mysql
-      - mongo
       - frontend
     command: sleep infinity
     networks: [pub, priv]
@@ -21,11 +19,10 @@ services:
   gateway:
     build: ./gateway
     environment:
-      - MYSQL_URL=mysql://interview_user:interview_password@mysql:3306/interview_buddy
-      - MONGO_URL=mongodb://mongo_admin:mongo_password@mongo:27017/interview_buddy?authSource=admin
+      - MYSQL_URL=mysql://interview_user:interview_password@localhost:3306/interview_buddy
+      - MONGO_URL=mongodb://mongo_admin:mongo_password@localhost:27017/interview_buddy?authSource=admin
     ports:
       - "15000:15000"
-    depends_on: [mysql, mongo]
     networks: [pub, priv]
 
   v1-face:
@@ -54,7 +51,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - USE_GPU=false  # 기본값 (GPU 사용시 true로 변경)
-    networks: [priv]
+    networks: [pub, priv]
 
   a1-prosody:
     build: ./services/a1-prosody
@@ -64,9 +61,8 @@ services:
   fb-aggregator:
     build: ./services/fb-aggregator
     environment:
-      - MONGO_URL=mongodb://mongo_admin:mongo_password@mongo:27017/interview_buddy?authSource=admin
+      - MONGO_URL=mongodb://mongo_admin:mongo_password@localhost:27017/interview_buddy?authSource=admin
     ports: ["15030:15030"]
-    depends_on: [mongo]
     networks: [pub, priv]
 
   frontend:
@@ -75,33 +71,33 @@ services:
     depends_on: [gateway, fb-aggregator, v3-pose]
     networks: [pub, priv]
 
-  mysql:
-    image: mysql:8.4
-    restart: always
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=interview_buddy
-      - MYSQL_USER=interview_user
-      - MYSQL_PASSWORD=interview_password
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql-data:/var/lib/mysql
-      - ./db/mysql-init.d:/docker-entrypoint-initdb.d:ro
-    networks: [priv]
+#  mysql:
+#    image: mysql:8.4
+#    restart: always
+#    environment:
+#      - MYSQL_ROOT_PASSWORD=rootpassword
+#      - MYSQL_DATABASE=interview_buddy
+#      - MYSQL_USER=interview_user
+#      - MYSQL_PASSWORD=interview_password
+#    ports:
+#      - "3306:3306"
+#    volumes:
+#      - mysql-data:/var/lib/mysql
+#      - ./db/mysql-init.d:/docker-entrypoint-initdb.d:ro
+#    networks: [priv]
 
-  mongo:
-    image: mongo:6
-    restart: always
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=mongo_admin
-      - MONGO_INITDB_ROOT_PASSWORD=mongo_password
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-      - ./db/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
-    networks: [priv]
+#  mongo:
+#    image: mongo:6
+#    restart: always
+#    environment:
+#      - MONGO_INITDB_ROOT_USERNAME=mongo_admin
+#      - MONGO_INITDB_ROOT_PASSWORD=mongo_password
+#    ports:
+#      - "27017:27017"
+#    volumes:
+#      - mongo-data:/data/db
+#      - ./db/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+#    networks: [priv]
 
 networks:
   pub: {}
