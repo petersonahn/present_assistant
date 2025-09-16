@@ -6,6 +6,8 @@
     <title>🎯 실시간 면접 피드백 시스템</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="/static/style.css" rel="stylesheet">
+
+    <link rel="icon" href="data:,">
 </head>
 <body>
     <div class="container">
@@ -80,6 +82,63 @@
                             <div id="focus-bar" class="progress-fill" style="width: 0%"></div>
                         </div>
                         <span id="focus-value">0%</span>
+                    </div>
+                </div>
+
+                <!-- 음성 분석 -->
+                <div class="analysis-card">
+                    <h3><i class="fas fa-microphone"></i> 실시간 음성 분석</h3>
+                    <div class="speech-controls">
+                        <button id="speech-start-btn" class="btn btn-success btn-sm">
+                            <i class="fas fa-microphone"></i> 음성 시작
+                        </button>
+                        <button id="speech-stop-btn" class="btn btn-danger btn-sm" disabled>
+                            <i class="fas fa-microphone-slash"></i> 음성 중지
+                        </button>
+                    </div>
+                    <div class="speech-indicators">
+                        <div class="indicator">
+                            <div class="indicator-header">
+                                <i class="fas fa-volume-up"></i>
+                                <span class="indicator-label">음량</span>
+                            </div>
+                            <div class="volume-meter">
+                                <div id="volume-fill" class="volume-fill" style="width: 0%"></div>
+                            </div>
+                            <span id="volume-value" class="indicator-value">0%</span>
+                        </div>
+                        <div class="indicator">
+                            <div class="indicator-header">
+                                <i class="fas fa-tachometer-alt"></i>
+                                <span class="indicator-label">말하기 속도</span>
+                            </div>
+                            <span id="speech-rate" class="indicator-value">0 WPM</span>
+                            <div class="indicator-description">분당 단어 수</div>
+                        </div>
+                        <div class="indicator">
+                            <div class="indicator-header">
+                                <i class="fas fa-heart"></i>
+                                <span class="indicator-label">감정 상태</span>
+                            </div>
+                            <span id="emotion-status" class="indicator-value neutral">중립</span>
+                            <div class="indicator-description">현재 감정 상태</div>
+                        </div>
+                        <div class="indicator">
+                            <div class="indicator-header">
+                                <i class="fas fa-chart-line"></i>
+                                <span class="indicator-label">자신감</span>
+                            </div>
+                            <span id="speech-confidence" class="indicator-value">0%</span>
+                            <div class="indicator-description">음성 분석 기반 자신감</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 실시간 전사 -->
+                    <div class="transcription-section">
+                        <h4><i class="fas fa-closed-captioning"></i> 실시간 전사</h4>
+                        <div id="transcription-text" class="transcription-text">
+                            음성 분석을 시작하면 여기에 실시간 전사가 표시됩니다...
+                        </div>
                     </div>
                 </div>
 

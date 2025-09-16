@@ -1,36 +1,62 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+# app/ws/manager.py
 from typing import Dict, Set
-import orjson
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 ws_router = APIRouter()
 
-# 세션별 커넥션 관리
-_connections: Dict[str, Set[WebSocket]] = {}
+class WSManager:
+    def __init__(self) -> None:
+        # 세션ID -> 연결된 WebSocket 집합
+        self._sessions: Dict[str, Set[WebSocket]] = {}
+        # latest 캐시(백업 폴링용)
+        self._latest: Dict[str, dict] = {}
+
+    async def connect(self, sid: str, ws: WebSocket) -> None:
+        await ws.accept()
+        self._sessions.setdefault(sid, set()).add(ws)
+
+    def disconnect(self, sid: str, ws: WebSocket) -> None:
+        try:
+            conns = self._sessions.get(sid)
+            if conns and ws in conns:
+                conns.remove(ws)
+                if not conns:
+                    self._sessions.pop(sid, None)
+        except Exception:
+            pass  # 방어적 제거
+
+    async def send(self, sid: str, data: dict) -> None:
+        # 최신값 캐시
+        self._latest[sid] = data
+        # 세션에 열린 소켓들로 브로드캐스트
+        conns = list(self._sessions.get(sid, []))
+        dead: list[WebSocket] = []
+        for ws in conns:
+            try:
+                await ws.send_json(data)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(sid, ws)
+
+    def latest(self, sid: str) -> dict:
+        return self._latest.get(sid, {})
+
+manager = WSManager()
 
 @ws_router.websocket("/ws")
-async def ws_endpoint(ws: WebSocket, session_id: str = Query(...)):
-    await ws.accept()
-    _connections.setdefault(session_id, set()).add(ws)
+async def ws_endpoint(websocket: WebSocket, session_id: str = Query(...)):
+    """표준 경로: /ws?session_id=..."""
+    sid = session_id
+    await manager.connect(sid, websocket)
     try:
-        await ws.send_text(orjson.dumps({"ok": True, "msg": "fb-aggregator ws connected", "session_id": session_id}).decode())
+        # 클라이언트에서 보내는 텍스트는 소비만(필요하면 처리 로직 추가)
         while True:
-            # 필요 시 클라이언트에서 오는 메시지 처리
-            _ = await ws.receive_text()
+            await websocket.receive_text()
     except WebSocketDisconnect:
-        pass
-    finally:
-        _connections.get(session_id, set()).discard(ws)
+        manager.disconnect(sid, websocket)
 
-async def broadcast_text(session_id: str, text: str):
-    dead = []
-    for c in list(_connections.get(session_id, set())):
-        try:
-            await c.send_text(text)
-        except Exception:
-            dead.append(c)
-    for c in dead:
-        _connections.get(session_id, set()).discard(c)
-
-async def broadcast_json(session_id: str, payload: dict):
-    text = orjson.dumps(payload).decode()
-    await broadcast_text(session_id, text)
+@ws_router.websocket("/ws/")
+async def ws_endpoint_trailing_slash(websocket: WebSocket, session_id: str = Query(...)):
+    """슬래시가 붙어도 동작하게 보조 엔드포인트"""
+    await ws_endpoint(websocket, session_id)

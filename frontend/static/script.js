@@ -11,6 +11,18 @@ class InterviewFeedbackSystem {
         this.startTime = null;
         this.timerInterval = null;
         
+        // 음성 관련 상태
+        this.speechRunning = false;
+        this.audioStream = null;
+        this.audioContext = null;
+        this.analyzer = null;
+        this.speechInterval = null;
+
+        // WS 관련 상태
+        this.sessionId = null;
+        this.ws = null;
+        this._pollTimer = null;
+        
         // 설정
         this.settings = {
             analysisInterval: 2000,
@@ -64,7 +76,17 @@ class InterviewFeedbackSystem {
             
             // 모달 요소들
             settingsModal: document.getElementById('settings-modal'),
-            loading: document.getElementById('loading')
+            loading: document.getElementById('loading'),
+            
+            // 음성 분석 요소들
+            speechStartBtn: document.getElementById('speech-start-btn'),
+            speechStopBtn: document.getElementById('speech-stop-btn'),
+            volumeFill: document.getElementById('volume-fill'),
+            volumeValue: document.getElementById('volume-value'),
+            speechRate: document.getElementById('speech-rate'),
+            emotionStatus: document.getElementById('emotion-status'),
+            speechConfidence: document.getElementById('speech-confidence'),
+            transcriptionText: document.getElementById('transcription-text')
         };
     }
     
@@ -74,8 +96,13 @@ class InterviewFeedbackSystem {
         this.elements.captureBtn.addEventListener('click', () => this.captureImage());
         this.elements.settingsBtn.addEventListener('click', () => this.openSettings());
         
+        // 음성 분석 이벤트
+        if (this.elements.speechStartBtn) this.elements.speechStartBtn.addEventListener('click', () => this.startSpeechAnalysis());
+        if (this.elements.speechStopBtn)  this.elements.speechStopBtn.addEventListener('click', () => this.stopSpeechAnalysis());
+        
         // 모달 이벤트
-        document.querySelector('.close-btn').addEventListener('click', () => this.closeModal());
+        const closeBtn = document.querySelector('.close-btn');
+        if (closeBtn) closeBtn.addEventListener('click', () => this.closeModal());
         window.addEventListener('click', (e) => {
             if (e.target === this.elements.settingsModal) {
                 this.closeModal();
@@ -83,7 +110,8 @@ class InterviewFeedbackSystem {
         });
         
         // 설정 변경 이벤트
-        document.getElementById('sensitivity').addEventListener('input', (e) => {
+        const sens = document.getElementById('sensitivity');
+        if (sens) sens.addEventListener('input', (e) => {
             document.getElementById('sensitivity-value').textContent = e.target.value;
         });
     }
@@ -131,14 +159,14 @@ class InterviewFeedbackSystem {
         try {
             this.showLoading(true);
             
-            // 카메라 스트림 시작
+            // 카메라 스트림 시작 (오디오 포함)
             this.stream = await navigator.mediaDevices.getUserMedia({
                 video: { 
                     width: { ideal: 1280 },
                     height: { ideal: 720 },
                     facingMode: 'user'
                 },
-                audio: false
+                audio: true  // 오디오 활성화
             });
             
             this.video.srcObject = this.stream;
@@ -163,7 +191,12 @@ class InterviewFeedbackSystem {
             
             // 분석 시작
             this.startPoseAnalysis();
-            
+
+            // fb-aggregator WebSocket 연결 (안전 URL 방식)
+            this.connectFeedbackWS();
+            // 필요시 폴링 백업을 쓰고 싶다면 주석 해제
+            // this.pollFeedbackLatest();
+
             this.showLoading(false);
             this.addFeedbackMessage('분석이 시작되었습니다!', 'success');
             
@@ -171,7 +204,7 @@ class InterviewFeedbackSystem {
             console.error('Failed to start analysis:', error);
             this.showLoading(false);
             this.addFeedbackMessage('카메라 접근에 실패했습니다', 'error');
-            alert('카메라 접근 권한을 허용해주세요.');
+            // alert('카메라 접근 권한을 허용해주세요.');
         }
     }
     
@@ -256,8 +289,6 @@ class InterviewFeedbackSystem {
             
             if (result.success) {
                 this.updateAnalysisResults(result.data);
-                // 면접 모드에서는 키포인트 그리기 비활성화
-                // this.drawKeypoints(result.data.keypoints);
             } else {
                 console.error('Analysis failed:', result);
             }
@@ -295,12 +326,6 @@ class InterviewFeedbackSystem {
         } else if (analysis.feedback.length > 0 && analysis.posture_score < 50) {
             this.showNotification(analysis.feedback[0]);
         }
-        
-        // 면접 모드에서는 키포인트 시각화 완전 비활성화
-        // this.visualizeKeypoints(keypoints);
-        
-        // 감정 분석은 별도로 처리 (향후 구현)
-        // this.updateEmotionAnalysis();
     }
     
     updatePostureIndicators(analysis) {
@@ -383,12 +408,6 @@ class InterviewFeedbackSystem {
     updateEmotionAnalysis() {
         // 감정 분석 API 연동 시 구현 예정
         // 현재는 자세분석과 독립적으로 작동
-        
-        // 예시: 실제 감정 분석 API 호출
-        // const emotionData = await this.analyzeEmotion();
-        // this.elements.confidenceBar.style.width = `${emotionData.confidence}%`;
-        // this.elements.focusBar.style.width = `${emotionData.focus}%`;
-        
         console.log('감정 분석은 별도 모듈에서 처리됩니다');
     }
     
@@ -430,67 +449,9 @@ class InterviewFeedbackSystem {
         }
     }
     
-    drawKeypoints(keypoints) {
-        // 항상 캔버스 클리어 (이전 그림 요소 제거)
+    // 면접 모드: 시각화 완전 비활성화 - 캔버스만 클리어
+    drawKeypoints() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // 면접 모드에서는 키포인트 시각화 완전 비활성화
-        if (!this.settings.showKeypoints) return;
-        
-        // 개발자 모드에서만 키포인트 그리기 (현재는 비활성화)
-        // this.drawActualKeypoints(keypoints);
-    }
-    
-    getKeypointColor(name) {
-        const colorMap = {
-            'nose': '#fbbf24',
-            'neck': '#10b981',
-            'l_eye': '#fbbf24',
-            'r_eye': '#fbbf24',
-            'l_ear': '#a78bfa',
-            'r_ear': '#a78bfa',
-            'l_shoulder': '#3b82f6',
-            'r_shoulder': '#3b82f6',
-            'l_elbow': '#ef4444',
-            'r_elbow': '#ef4444',
-            'l_wrist': '#f59e0b',
-            'r_wrist': '#f59e0b'
-        };
-        return colorMap[name] || '#6b7280';
-    }
-    
-    drawSkeleton(keypoints) {
-        // 면접 모드에서는 스켈레톤 그리기 완전 비활성화
-        if (!this.settings.showKeypoints) return;
-        
-        // 개발자 모드에서만 스켈레톤 그리기
-        const connections = [
-            ['l_shoulder', 'r_shoulder'],
-            ['l_shoulder', 'l_elbow'],
-            ['l_elbow', 'l_wrist'],
-            ['r_shoulder', 'r_elbow'],
-            ['r_elbow', 'r_wrist'],
-            ['neck', 'l_shoulder'],
-            ['neck', 'r_shoulder'],
-            ['neck', 'nose']
-        ];
-        
-        const keypointMap = {};
-        keypoints.forEach(kp => {
-            keypointMap[kp.name] = kp;
-        });
-        
-        this.ctx.strokeStyle = '#10b981';
-        this.ctx.lineWidth = 2;
-        
-        connections.forEach(([start, end]) => {
-            if (keypointMap[start] && keypointMap[end]) {
-                this.ctx.beginPath();
-                this.ctx.moveTo(keypointMap[start].x, keypointMap[start].y);
-                this.ctx.lineTo(keypointMap[end].x, keypointMap[end].y);
-                this.ctx.stroke();
-            }
-        });
     }
     
     showNotification(message) {
@@ -579,88 +540,114 @@ class InterviewFeedbackSystem {
                 `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
     }
-    
-    visualizeKeypoints(keypoints) {
-        // 면접 모드에서는 모든 시각화 비활성화
-        this.drawKeypoints(keypoints);  // 이미 내부에서 비활성화 처리됨
-        
-        // 시각적 효과도 면접 모드에서는 비활성화
-        if (this.settings.showKeypoints && keypoints.length > 0) {
-            this.addVisualEffects(keypoints);
+
+    // ===== fb-aggregator WebSocket & 렌더링 =====
+
+    ensureSessionId() {
+        if (this.sessionId) return this.sessionId;
+        const url = new URL(window.location.href);
+        const fromQuery = url.searchParams.get('sid');
+        if (fromQuery) this.sessionId = fromQuery;
+        else this.sessionId = 'sid-' + Math.random().toString(36).slice(2, 10);
+        return this.sessionId;
+    }
+
+    connectFeedbackWS() {
+        try {
+            const sid = this.ensureSessionId();
+
+            // 안전한 URL 생성: /ws + wss/ws 프로토콜 자동 보정 + 쿼리 파라미터 구성
+            const u = new URL('/ws', window.location.origin);
+            u.protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+            u.searchParams.set('session_id', sid);
+
+            // 중복 연결 방지
+            if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
+
+            this.ws = new WebSocket(u.href);
+            this.ws.onopen = () => console.log('[fb-aggregator] WS connected', u.href);
+            this.ws.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    this.renderAggregatorFeedback(data);
+                } catch (_) { /* 텍스트일 경우 무시 */ }
+            };
+            this.ws.onclose = () => {
+                console.warn('[fb-aggregator] WS closed, retrying…');
+                setTimeout(() => this.connectFeedbackWS(), 1200);
+            };
+            this.ws.onerror = () => {
+                try { this.ws.close(); } catch(_) {}
+            };
+        } catch (e) {
+            console.warn('WS 연결 실패:', e);
         }
     }
-    
-    addVisualEffects(keypoints) {
-        // 면접 모드에서는 시각적 효과 완전 비활성화
-        // 개발자 모드에서만 필요시 활성화 가능
-        return;
-        
-        // 아래 코드는 개발자 모드에서만 사용
-        // const nosePoint = keypoints.find(kp => kp.name === 'nose');
-        // const neckPoint = keypoints.find(kp => kp.name === 'neck');
-        // ... (시각적 효과 코드)
+
+    // 필요 시 폴링(백업) 사용하려면 호출
+    async pollFeedbackLatest() {
+        if (this._pollTimer) return;
+        const sid = this.ensureSessionId();
+        const poll = async () => {
+            try {
+                const res = await fetch(`/api/feedback/latest?session_id=${encodeURIComponent(sid)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && Object.keys(data).length) {
+                        this.renderAggregatorFeedback(data);
+                    }
+                }
+            } catch (_) {}
+        };
+        await poll();
+        this._pollTimer = setInterval(poll, 2000);
+    }
+
+    renderAggregatorFeedback(fb) {
+        // 종합 점수
+        if (typeof fb.overall === 'number') {
+            const circle = document.getElementById('score-circle');
+            const text = document.getElementById('score-text');
+            const label = document.getElementById('score-feedback');
+            const v = Math.max(0, Math.min(100, Math.round(fb.overall)));
+            circle.setAttribute('stroke-dasharray', `${v}, 100`);
+            text.textContent = v;
+            if (v >= 80)      { label.textContent = '훌륭한 자세입니다! 👍'; }
+            else if (v >= 60) { label.textContent = '좋은 자세입니다 👌'; }
+            else              { label.textContent = '자세 개선이 필요해요 📐'; }
+        }
+
+        // 보조 지표(있으면 표시)
+        if (typeof fb.voice === 'number') {
+            const bar = document.getElementById('confidence-bar');
+            const val = document.getElementById('confidence-value');
+            bar.style.width = `${fb.voice}%`;
+            val.textContent = `${Math.round(fb.voice)}%`;
+        }
+        if (typeof fb.face === 'number') {
+            const bar = document.getElementById('focus-bar');
+            const val = document.getElementById('focus-value');
+            bar.style.width = `${fb.face}%`;
+            val.textContent = `${Math.round(fb.face)}%`;
+        }
+
+        // 메시지
+        if (Array.isArray(fb.tips)) {
+            const wrap = document.getElementById('feedback-messages');
+            fb.tips.slice(0,3).forEach(msg=>{
+                const p = document.createElement('p');
+                p.className = 'feedback-message';
+                p.textContent = msg;
+                wrap.insertBefore(p, wrap.firstChild);
+            });
+            // 오래된 메시지 정리(최대 5개 유지)
+            const nodes = wrap.children;
+            if (nodes.length > 5) {
+                for (let i = 5; i < nodes.length; i++) nodes[i].remove();
+            }
+        }
     }
 }
-
-// === fb-aggregator 실시간 피드백 수신(WebSocket) ===
-(function connectFeedbackWS(){
-    const SESSION_ID = 'demo-123'; // TODO: 실제 세션ID로 교체
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const WS_URL = `${proto}://${location.host}/ws/?session_id=${encodeURIComponent(SESSION_ID)}`;
-  
-    let ws;
-    function open(){
-      ws = new WebSocket(WS_URL);
-      ws.onopen = () => console.log('[fb-aggregator] WS connected');
-      ws.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data); 
-          // 예시 payload 가정:
-          // { overall: 78, voice: 80, face: 74, pose: 79, tips: ["말속도가 빨라요", "시선 고정 좋아요"], ts: "..." }
-          renderAggregatorFeedback(data);
-        } catch (_) { /* 텍스트면 무시 */ }
-      };
-      ws.onclose = () => setTimeout(open, 1200); // 재연결
-      ws.onerror = () => ws.close();
-    }
-    open();
-  
-    // 화면 반영(이미 있는 DOM을 재사용)
-    function renderAggregatorFeedback(fb){
-      // 종합 점수 원형 그래프
-      if (typeof fb.overall === 'number') {
-        const circle = document.getElementById('score-circle');
-        const text = document.getElementById('score-text');
-        const label = document.getElementById('score-feedback');
-        circle.style.strokeDasharray = `${fb.overall}, 100`;
-        text.textContent = fb.overall;
-        if (fb.overall >= 80) { circle.style.stroke = 'var(--success-color)'; label.textContent = '훌륭한 자세입니다! 👍'; }
-        else if (fb.overall >= 60) { circle.style.stroke = 'var(--warning-color)'; label.textContent = '좋은 자세입니다 👌'; }
-        else { circle.style.stroke = 'var(--danger-color)'; label.textContent = '자세 개선이 필요해요 📐'; }
-      }
-  
-      // 세부 스코어(있으면)
-      if (typeof fb.voice === 'number') document.getElementById('confidence-bar').style.width = `${fb.voice}%`;
-      if (typeof fb.voice === 'number') document.getElementById('confidence-value').textContent = `${fb.voice}%`;
-      if (typeof fb.face === 'number')  document.getElementById('focus-bar').style.width = `${fb.face}%`;
-      if (typeof fb.face === 'number')  document.getElementById('focus-value').textContent = `${fb.face}%`;
-  
-      // 메시지(최근 3개만)
-      if (Array.isArray(fb.tips)) {
-        const wrap = document.getElementById('feedback-messages');
-        fb.tips.slice(0,3).forEach(msg=>{
-          const p = document.createElement('p');
-          p.className = 'feedback-message';
-          p.textContent = msg;
-          wrap.insertBefore(p, wrap.firstChild);
-        });
-        // 5개 초과시 오래된 메시지 삭제
-        const nodes = wrap.children;
-        if (nodes.length > 5) { for (let i=5;i<nodes.length;i++) nodes[i].remove(); }
-      }
-    }
-  })();
-  
 
 // 설정 저장 함수 (전역)
 function saveSettings() {
@@ -685,6 +672,124 @@ function saveSettings() {
 function closeModal() {
     window.feedbackSystem.closeModal();
 }
+
+// ====== 음성 분석 메서드 (prototype 부착) ======
+
+InterviewFeedbackSystem.prototype.startSpeechAnalysis = async function() {
+    if (this.speechRunning) return;
+    try {
+        // v3-speech API에 분석 시작 요청
+        const response = await fetch('/api/v3-speech/speech/start_realtime', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        this.speechRunning = true;
+        if (this.elements.speechStartBtn) this.elements.speechStartBtn.disabled = true;
+        if (this.elements.speechStopBtn)  this.elements.speechStopBtn.disabled = false;
+        
+        // 음성 활성화 상태 UI 업데이트(선택)
+        const firstCard = document.querySelector('.analysis-card');
+        if (firstCard) firstCard.classList.add('speech-active');
+        
+        // 실시간 음성 데이터 스트리밍 시작
+        this.startSpeechStreaming();
+        this.addFeedbackMessage('음성 분석이 시작되었습니다', 'success');
+    } catch (error) {
+        console.error('음성 분석 시작 실패:', error);
+        this.addFeedbackMessage('음성 분석 시작에 실패했습니다', 'error');
+    }
+};
+
+InterviewFeedbackSystem.prototype.stopSpeechAnalysis = async function() {
+    if (!this.speechRunning) return;
+    try {
+        const response = await fetch('/api/v3-speech/speech/stop_realtime', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        // 응답 상태와 무관하게 로컬 상태 정리
+        this.speechRunning = false;
+        if (this.elements.speechStartBtn) this.elements.speechStartBtn.disabled = false;
+        if (this.elements.speechStopBtn)  this.elements.speechStopBtn.disabled = true;
+        
+        const firstCard = document.querySelector('.analysis-card');
+        if (firstCard) firstCard.classList.remove('speech-active');
+        
+        if (this.speechInterval) { clearInterval(this.speechInterval); this.speechInterval = null; }
+        if (this.audioContext)  { try { this.audioContext.close(); } catch(_){} this.audioContext = null; }
+        
+        this.addFeedbackMessage('음성 분석이 중지되었습니다', 'info');
+    } catch (error) {
+        console.error('음성 분석 중지 실패:', error);
+        this.addFeedbackMessage('음성 분석 중지에 실패했습니다', 'error');
+    }
+};
+
+InterviewFeedbackSystem.prototype.startSpeechStreaming = function() {
+    this.speechInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/v3-speech/speech/status');
+            const data = await response.json();
+            if (data.success && data.status) {
+                this.updateSpeechUI(data.status);
+            }
+
+            // 최신 분석 결과 조회
+            const resultsResponse = await fetch('/api/v3-speech/speech/results/latest');
+            if (resultsResponse.ok) {
+                const results = await resultsResponse.json();
+                if (results.success && results.data) {
+                    this.updateTranscription(results.data);
+                }
+            }
+        } catch (error) {
+            console.error('음성 데이터 스트리밍 오류:', error);
+        }
+    }, 1000); // 1초마다 업데이트
+};
+
+InterviewFeedbackSystem.prototype.updateSpeechUI = function(status) {
+    // 음량 업데이트
+    const volume = Math.round((status.current_volume || 0) * 100);
+    if (this.elements.volumeFill)  this.elements.volumeFill.style.width = `${volume}%`;
+    if (this.elements.volumeValue) this.elements.volumeValue.textContent = `${volume}%`;
+    
+    // 말하기 속도 업데이트
+    if (this.elements.speechRate) this.elements.speechRate.textContent = `${Math.round(status.speech_rate || 0)} WPM`;
+    
+    // 감정 상태 업데이트
+    const emotion = status.dominant_emotion || 'neutral';
+    if (this.elements.emotionStatus) {
+        this.elements.emotionStatus.textContent = this.getEmotionLabel(emotion);
+        this.elements.emotionStatus.className = `indicator-value ${emotion}`;
+    }
+    
+    // 자신감 업데이트
+    const confidence = Math.round((status.confidence_level || 0) * 100);
+    if (this.elements.speechConfidence) this.elements.speechConfidence.textContent = `${confidence}%`;
+};
+
+InterviewFeedbackSystem.prototype.updateTranscription = function(data) {
+    if (data.transcription && this.elements.transcriptionText) {
+        const transcriptionDiv = this.elements.transcriptionText;
+        transcriptionDiv.textContent = data.transcription;
+        transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+    }
+};
+
+InterviewFeedbackSystem.prototype.getEmotionLabel = function(emotion) {
+    const labels = {
+        'neutral': '중립',
+        'positive': '긍정적',
+        'negative': '부정적',
+        'excited':  '흥미로운',
+        'confident':'자신감',
+        'nervous':  '긴장'
+    };
+    return labels[emotion] || '중립';
+};
 
 // DOM 로드 후 시스템 초기화
 document.addEventListener('DOMContentLoaded', () => {

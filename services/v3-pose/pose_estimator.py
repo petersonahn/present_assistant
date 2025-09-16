@@ -593,43 +593,16 @@ class HumanPoseEstimator:
     
     def draw_pose(self, image: np.ndarray, keypoints: List[Dict]) -> np.ndarray:
         """
-        이미지에 포즈 키포인트와 스켈레톤 그리기 (면접 모드에서는 비활성화)
+        면접 모드에서는 시각화 비활성화 - 원본 이미지만 반환
         
         Args:
             image: 원본 이미지
-            keypoints: 키포인트 리스트
+            keypoints: 키포인트 리스트 (사용하지 않음)
             
         Returns:
-            원본 이미지 (키포인트 그리기 비활성화)
+            원본 이미지 복사본
         """
-        # 면접 모드에서는 원본 이미지를 그대로 반환 (키포인트 그리기 비활성화)
         return image.copy()
-        
-        # 아래 코드는 개발자 모드에서만 사용 (현재 비활성화)
-        # result_image = image.copy()
-        # 
-        # # 키포인트를 인덱스로 매핑
-        # kp_dict = {kp['id']: kp for kp in keypoints}
-        # 
-        # # 스켈레톤 연결선 그리기
-        # for pair in self.POSE_PAIRS:
-        #     if pair[0] in kp_dict and pair[1] in kp_dict:
-        #         point1 = kp_dict[pair[0]]
-        #         point2 = kp_dict[pair[1]]
-        #         
-        #         cv2.line(result_image, 
-        #                 (point1['x'], point1['y']), 
-        #                 (point2['x'], point2['y']), 
-        #                 (0, 255, 0), 2)
-        # 
-        # # 키포인트 그리기
-        # for kp in keypoints:
-        #     cv2.circle(result_image, (kp['x'], kp['y']), 5, (0, 0, 255), -1)
-        #     cv2.putText(result_image, f"{kp['name']}", 
-        #                (kp['x'] + 5, kp['y'] - 5),
-        #                cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
-        # 
-        # return result_image
 
 
 def create_pose_estimator() -> HumanPoseEstimator:
@@ -656,16 +629,9 @@ if __name__ == "__main__":
         result = estimator.estimate_pose(frame)
         
         # 면접 모드: 시각화 완전 비활성화 - 원본 프레임만 표시
-        pose_image = frame.copy()  # 원본 이미지 그대로 사용
+        pose_image = frame.copy()
         
-        # 피드백 표시도 비활성화 (면접 환경에서는 방해 요소 제거)
-        # y_offset = 30
-        # for feedback in result['analysis']['feedback']:
-        #     cv2.putText(pose_image, feedback, (10, y_offset),
-        #                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        #     y_offset += 25
-        
-        # 콘솔에만 결과 출력 (시각적 방해 없이 디버깅용)
+        # 콘솔에만 결과 출력 (시각적 방해 없이)
         print(f"키포인트: {len(result['keypoints'])}개, 점수: {result['analysis']['posture_score']}/100")
         
         cv2.imshow('Pose Estimation - Interview Mode', pose_image)

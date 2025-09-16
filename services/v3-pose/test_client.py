@@ -143,24 +143,7 @@ def realtime_demo():
                 analysis = result['data']['analysis']
                 keypoints = result['data']['keypoints']
                 
-                # 면접 모드: 모든 시각화 비활성화
-                # 키포인트 그리기 비활성화
-                # for kp in keypoints:
-                #     cv2.circle(frame, (kp['x'], kp['y']), 5, (0, 255, 0), -1)
-                
-                # 피드백 표시 비활성화
-                # y_offset = 30
-                # for feedback in analysis['feedback'][:3]:  # 최대 3개만 표시
-                #     cv2.putText(frame, feedback, (10, y_offset),
-                #                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                #     y_offset += 25
-                
-                # 점수 표시 비활성화
-                # score_text = f"Posture Score: {analysis['posture_score']}/100"
-                # cv2.putText(frame, score_text, (10, frame.shape[0] - 20),
-                #            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-                
-                # 콘솔에만 결과 출력 (시각적 방해 없이)
+                # 면접 모드: 시각화 비활성화 - 콘솔에만 결과 출력
                 print(f"키포인트: {len(keypoints)}개, 점수: {analysis['posture_score']}/100")
             
         except Exception as e:

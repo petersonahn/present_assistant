@@ -762,3 +762,103 @@ body {
         margin: 10% auto;
     }
 }
+
+/* 음성 분석 스타일 */
+.speech-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    justify-content: center;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.speech-indicators {
+    display: grid;
+    gap: 15px;
+}
+
+.volume-meter {
+    width: 100%;
+    height: 8px;
+    background-color: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 5px 0;
+}
+
+.volume-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--success-color) 0%, var(--warning-color) 70%, var(--danger-color) 100%);
+    transition: width 0.2s ease;
+    border-radius: 4px;
+}
+
+.transcription-section {
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    border-left: 4px solid var(--info-color);
+}
+
+.transcription-section h4 {
+    color: var(--info-color);
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.transcription-text {
+    min-height: 60px;
+    padding: 10px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--dark-color);
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.indicator-value.neutral { color: #6b7280; }
+.indicator-value.positive { color: var(--success-color); }
+.indicator-value.negative { color: var(--danger-color); }
+.indicator-value.excited { color: var(--warning-color); }
+
+/* 실시간 업데이트 애니메이션 */
+.speech-indicators .indicator {
+    transition: all 0.3s ease;
+}
+
+.speech-indicators .indicator:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+/* 음성 활성화 상태 */
+.speech-active .volume-meter {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* 음성 관련 반응형 스타일 */
+@media (max-width: 768px) {
+    .speech-controls {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .speech-controls .btn-sm {
+        width: 100%;
+        max-width: 200px;
+    }
+}

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v3-speech 테스트 페이지</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 v3-speech 서비스 테스트</h1>
+        
+        <div class="status info">
+            <strong>서비스 URL:</strong> http://localhost:15013
+        </div>
+        
+        <h2>📡 연결 테스트</h2>
+        <button onclick="testHealth()">헬스체크</button>
+        <button onclick="testDevices()">오디오 디바이스</button>
+        <button onclick="testStatus()">음성 상태</button>
+        <button onclick="testConfig()">설정 정보</button>
+        <button onclick="openDocs()">API 문서</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:15013';
+        const resultsDiv = document.getElementById('results');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            resultsDiv.textContent += `[${timestamp}] ${message}\n`;
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+        
+        async function testAPI(endpoint, description) {
+            try {
+                log(`🔍 ${description} 테스트 시작...`);
+                
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ ${description} 성공 (${response.status})`);
+                    log(`📄 응답: ${JSON.stringify(data, null, 2)}`);
+                } else {
+                    log(`❌ ${description} 실패 (${response.status})`);
+                }
+            } catch (error) {
+                log(`💥 ${description} 오류: ${error.message}`);
+                
+                // 연결 오류 시 해결 방법 제시
+                if (error.message.includes('fetch')) {
+                    log(`💡 해결 방법:`);
+                    log(`   1. 브라우저 캐시 삭제 (Ctrl+Shift+Delete)`);
+                    log(`   2. 시크릿 모드로 접속`);
+                    log(`   3. 다른 브라우저 사용`);
+                    log(`   4. 방화벽 확인`);
+                }
+            }
+            log('');
+        }
+        
+        function testHealth() {
+            testAPI('/health', '헬스체크');
+        }
+        
+        function testDevices() {
+            testAPI('/audio/devices', '오디오 디바이스');
+        }
+        
+        function testStatus() {
+            testAPI('/speech/status', '음성 상태');
+        }
+        
+        function testConfig() {
+            testAPI('/config', '설정 정보');
+        }
+        
+        function openDocs() {
+            window.open(`${API_BASE}/docs`, '_blank');
+        }
+        
+        // 페이지 로드 시 자동 헬스체크
+        window.onload = function() {
+            log('🎤 v3-speech 테스트 페이지 로드됨');
+            log('📡 자동 헬스체크 실행...');
+            testHealth();
+        };
+    </script>
+</body>
+</html>
