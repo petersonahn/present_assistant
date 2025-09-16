@@ -21,6 +21,7 @@ class InterviewFeedbackSystem {
         
         this.initializeElements();
         this.bindEvents();
+        this.initializeEmotionBars();
         this.checkServerConnection();
     }
     
@@ -82,6 +83,18 @@ class InterviewFeedbackSystem {
         document.getElementById('sensitivity').addEventListener('input', (e) => {
             document.getElementById('sensitivity-value').textContent = e.target.value;
         });
+    }
+    
+    initializeEmotionBars() {
+        // 감정 분석 바를 기본값으로 초기화 (자세분석과 독립적)
+        this.elements.confidenceBar.style.width = '50%';
+        this.elements.confidenceValue.textContent = '50%';
+        
+        this.elements.focusBar.style.width = '50%';
+        this.elements.focusValue.textContent = '50%';
+        
+        // 감정 분석 미구현 상태임을 표시
+        console.log('감정 분석 기능은 별도 모듈에서 구현 예정입니다');
     }
     
     async checkServerConnection() {
@@ -257,8 +270,8 @@ class InterviewFeedbackSystem {
         // 자세 분석 업데이트
         this.updatePostureIndicators(analysis);
         
-        // 점수 업데이트
-        this.updateScore(analysis.posture_score);
+        // 점수 업데이트 (자세분석만)
+        this.updatePostureScore(analysis.posture_score);
         
         // 피드백 메시지 업데이트
         this.updateFeedback(analysis.feedback);
@@ -273,6 +286,9 @@ class InterviewFeedbackSystem {
         
         // 키포인트 시각화
         this.visualizeKeypoints(keypoints);
+        
+        // 감정 분석은 별도로 처리 (향후 구현)
+        // this.updateEmotionAnalysis();
     }
     
     updatePostureIndicators(analysis) {
@@ -294,6 +310,8 @@ class InterviewFeedbackSystem {
             'balanced': '균형잡힘 ✓',
             'unbalanced': '불균형 ⚠',
             'partial': '부분감지 ◐',
+            'estimated': '추정됨 ⚡',
+            'detected': '감지됨 🔍',
             'straight': '바른자세 ✓',
             'tilted': '기울어짐 ⚠',
             'natural': '자연스러움 ✓',
@@ -303,8 +321,8 @@ class InterviewFeedbackSystem {
         return statusMap[status] || '감지중...';
     }
     
-    updateScore(score) {
-        // 원형 차트 업데이트
+    updatePostureScore(score) {
+        // 자세 점수만 업데이트 (원형 차트)
         this.elements.scoreCircle.style.strokeDasharray = `${score}, 100`;
         this.elements.scoreText.textContent = score;
         
@@ -319,16 +337,18 @@ class InterviewFeedbackSystem {
             this.elements.scoreCircle.style.stroke = 'var(--danger-color)';
             this.elements.scoreFeedback.textContent = '자세 개선이 필요해요 📐';
         }
+    }
+    
+    updateEmotionAnalysis() {
+        // 감정 분석 API 연동 시 구현 예정
+        // 현재는 자세분석과 독립적으로 작동
         
-        // 가상의 감정 분석 데이터 (실제로는 다른 모듈에서 처리)
-        const confidence = Math.min(100, score + Math.random() * 20);
-        const focus = Math.min(100, score + Math.random() * 15);
+        // 예시: 실제 감정 분석 API 호출
+        // const emotionData = await this.analyzeEmotion();
+        // this.elements.confidenceBar.style.width = `${emotionData.confidence}%`;
+        // this.elements.focusBar.style.width = `${emotionData.focus}%`;
         
-        this.elements.confidenceBar.style.width = `${confidence}%`;
-        this.elements.confidenceValue.textContent = `${Math.round(confidence)}%`;
-        
-        this.elements.focusBar.style.width = `${focus}%`;
-        this.elements.focusValue.textContent = `${Math.round(focus)}%`;
+        console.log('감정 분석은 별도 모듈에서 처리됩니다');
     }
     
     updateFeedback(feedbackList) {

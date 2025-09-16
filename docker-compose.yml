@@ -9,6 +9,7 @@ services:
       - v1-face
       - v2-emotion
       - v3-pose
+      - v3-speech
       - a1-prosody
       - fb-aggregator
       - mysql
@@ -40,6 +41,19 @@ services:
   v3-pose:
     build: ./services/v3-pose
     ports: ["15012:15012"]
+    networks: [priv]
+
+  v3-speech:
+    build: ./services/v3-speech
+    ports: ["15013:15013"]
+    volumes:
+      - /dev/snd:/dev/snd  # 오디오 디바이스 접근
+    devices:
+      - /dev/snd  # 오디오 디바이스 권한
+    privileged: true  # 오디오 접근을 위한 권한
+    environment:
+      - PYTHONUNBUFFERED=1
+      - USE_GPU=false  # 기본값 (GPU 사용시 true로 변경)
     networks: [priv]
 
   a1-prosody:

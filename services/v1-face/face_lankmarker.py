@@ -4,6 +4,8 @@ from mediapipe.framework.formats import landmark_pb2
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
+import math
+from typing import List, Dict, Tuple
 
 def draw_landmarks_on_image(rgb_image, detection_result):
   face_landmarks_list = detection_result.face_landmarks

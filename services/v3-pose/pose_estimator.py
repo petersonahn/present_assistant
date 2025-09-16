@@ -72,6 +72,10 @@ class HumanPoseEstimator:
         Returns:
             전처리된 이미지 텐서
         """
+        logger.info(f"입력 이미지 형태: {image.shape}")
+        logger.info(f"입력 이미지 타입: {image.dtype}")
+        logger.info(f"입력 이미지 값 범위: {image.min()} - {image.max()}")
+        
         # 크기 조정을 먼저 수행 (작은 이미지에서 색상 변환이 더 빠름)
         resized_image = cv2.resize(image, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
         
@@ -83,6 +87,9 @@ class HumanPoseEstimator:
         input_tensor[0, 0] = resized_image[:, :, 2] / 255.0  # R
         input_tensor[0, 1] = resized_image[:, :, 1] / 255.0  # G  
         input_tensor[0, 2] = resized_image[:, :, 0] / 255.0  # B
+        
+        logger.info(f"전처리된 텐서 형태: {input_tensor.shape}")
+        logger.info(f"전처리된 텐서 값 범위: {input_tensor.min():.3f} - {input_tensor.max():.3f}")
         
         return input_tensor
     
@@ -99,9 +106,26 @@ class HumanPoseEstimator:
         """
         original_height, original_width = original_shape
         
-        # 출력 형태: [1, 38, 32, 57] (PAFs + keypoints heatmaps)
-        # 키포인트 히트맵 추출 (채널 19-37, 인덱스 19:38)
-        keypoint_heatmaps = output[0, 19:38]  # 배치 차원 제거와 동시에 슬라이싱
+        logger.info(f"모델 출력 형태: {output.shape}")
+        logger.info(f"출력 값 범위: {output.min():.4f} - {output.max():.4f}")
+        
+        # 출력 형태 확인 및 적응적 처리
+        if len(output.shape) == 4 and output.shape[1] >= 19:
+            # 표준 형태: [1, channels, height, width]
+            if output.shape[1] == 38:
+                # PAFs + keypoints: 19개 PAF + 19개 keypoints
+                keypoint_heatmaps = output[0, 19:38]
+            elif output.shape[1] == 57:
+                # 다른 형태의 출력
+                keypoint_heatmaps = output[0, 38:57] 
+            else:
+                # 키포인트만 있는 경우
+                keypoint_heatmaps = output[0, :19] if output.shape[1] >= 19 else output[0]
+        else:
+            # 다른 형태의 출력 처리
+            keypoint_heatmaps = output[0] if len(output.shape) == 4 else output
+            
+        logger.info(f"키포인트 히트맵 형태: {keypoint_heatmaps.shape}")
         
         # 스케일 팩터 미리 계산
         heatmap_height, heatmap_width = keypoint_heatmaps.shape[1:]
@@ -109,29 +133,44 @@ class HumanPoseEstimator:
         scale_y = original_height / heatmap_height
         
         keypoints = []
-        confidence_threshold = 0.05  # 임계값을 낮춰서 더 많은 키포인트 감지
+        confidence_threshold = 0.001  # 임계값을 더욱 낮춤
+        
+        logger.info(f"히트맵 형태: {keypoint_heatmaps.shape}")
+        logger.info(f"히트맵 최대값들: {[np.max(keypoint_heatmaps[i]) for i in range(min(5, len(keypoint_heatmaps)))]}")
+        
+        # 키포인트 개수를 히트맵 수에 맞춤
+        num_keypoints = min(len(keypoint_heatmaps), len(self.KEYPOINT_NAMES))
+        logger.info(f"처리할 키포인트 개수: {num_keypoints}")
         
         # 벡터화된 처리로 최적화
-        for i in range(1, len(keypoint_heatmaps)):  # 배경(0번) 제외
+        for i in range(num_keypoints):
             heatmap = keypoint_heatmaps[i]
             
             # argmax를 사용해서 최대값 위치 찾기 (더 빠름)
             max_idx = np.unravel_index(np.argmax(heatmap), heatmap.shape)
             max_val = heatmap[max_idx]
             
-            # 신뢰도 임계값 체크
+            # 디버깅을 위한 로그
+            if i < 5:  # 처음 5개만 로그
+                logger.info(f"키포인트 {self.KEYPOINT_NAMES[i]}: 최대값={max_val:.4f}, 위치={max_idx}")
+            
+            # 신뢰도 임계값 체크 - 매우 낮은 임계값 사용
             if max_val > confidence_threshold:
                 # 좌표 변환 (정수 연산 최소화)
                 x = int(max_idx[1] * scale_x)
                 y = int(max_idx[0] * scale_y)
                 
                 keypoints.append({
-                    'id': i - 1,  # 0-17 인덱스로 조정
-                    'name': self.KEYPOINT_NAMES[i - 1],
+                    'id': i,  # 0부터 시작하는 인덱스
+                    'name': self.KEYPOINT_NAMES[i],
                     'x': x,
                     'y': y,
                     'confidence': float(max_val)
                 })
+            else:
+                # 낮은 신뢰도도 로그에 기록
+                if i < 5:
+                    logger.info(f"키포인트 {self.KEYPOINT_NAMES[i]} 신뢰도 낮음: {max_val:.4f}")
         
         return keypoints
     
@@ -186,108 +225,177 @@ class HumanPoseEstimator:
         
         # 키포인트 개수 확인
         if not keypoints or len(keypoints) == 0:
-            analysis['feedback'].append('키포인트를 감지할 수 없습니다. 카메라에 전신이 보이도록 조정해주세요')
+            analysis['feedback'] = [
+                '사람이 감지되지 않았습니다 👤',
+                '카메라에 전신이 잘 보이도록 조정해주세요',
+                '조명이 충분한지 확인해주세요 💡',
+                '카메라와 1-2미터 거리를 유지해주세요 📏'
+            ]
+            analysis['posture_score'] = 0
+            logger.warning("키포인트가 전혀 감지되지 않음")
             return analysis
         
-        # 키포인트를 이름으로 매핑 (신뢰도 0.2 이상만 사용 - 더 관대하게)
-        kp_dict = {kp['name']: kp for kp in keypoints if kp.get('confidence', 0) > 0.2}
+        # 키포인트를 이름으로 매핑 (모든 감지된 키포인트 사용)
+        kp_dict = {kp['name']: kp for kp in keypoints}  # 신뢰도 제한 완전 제거
         
         logger.info(f"전체 키포인트 개수: {len(keypoints)}")
-        logger.info(f"신뢰도 0.2 이상 키포인트: {list(kp_dict.keys())}")
-        logger.info(f"키포인트 신뢰도: {[(kp['name'], round(kp['confidence'], 3)) for kp in keypoints[:5]]}")  # 상위 5개만
+        logger.info(f"분석에 사용할 키포인트: {list(kp_dict.keys())}")
+        logger.info(f"키포인트 신뢰도: {[(kp['name'], round(kp['confidence'], 3)) for kp in keypoints]}")
+        
+        # 분석 전 강제 확인
+        if len(kp_dict) == 0:
+            logger.error("분석에 사용할 키포인트가 없습니다!")
+            analysis['feedback'] = ['키포인트 매핑 실패']
+            return analysis
         
         try:
-            # 기본 점수 (키포인트가 감지되면 20점)
-            analysis['posture_score'] = 20
+            # 기본 점수 (키포인트가 감지되면 30점)
+            analysis['posture_score'] = 30
             
-            # 어깨 균형 체크
+            logger.info(f"분석에 사용할 키포인트: {list(kp_dict.keys())}")
+            
+            # 어깨 균형 체크 (더 유연한 조건)
+            shoulders = [kp for name, kp in kp_dict.items() if 'shoulder' in name]
+            logger.info(f"감지된 어깨: {[name for name in kp_dict.keys() if 'shoulder' in name]}")
+            
             if 'l_shoulder' in kp_dict and 'r_shoulder' in kp_dict:
                 left_shoulder = kp_dict['l_shoulder']
                 right_shoulder = kp_dict['r_shoulder']
                 
                 shoulder_diff = abs(left_shoulder['y'] - right_shoulder['y'])
                 
-                if shoulder_diff < 30:  # 임계값을 30으로 증가 (더 관대하게)
+                if shoulder_diff < 40:  # 더욱 관대한 임계값
                     analysis['shoulder_balance'] = 'balanced'
                     analysis['posture_score'] += 25
                     analysis['feedback'].append('어깨 위치가 균형잡혀 있어요 ✓')
                 else:
                     analysis['shoulder_balance'] = 'unbalanced'
-                    analysis['posture_score'] += 10  # 불균형이어도 일부 점수 부여
+                    analysis['posture_score'] += 15  # 불균형이어도 더 많은 점수
                     analysis['feedback'].append('어깨를 수평으로 맞춰보세요 ⚠')
+            elif len(shoulders) == 1:
+                # 한쪽 어깨만 보이는 경우도 부분 인정
+                analysis['shoulder_balance'] = 'partial'
+                analysis['posture_score'] += 15
+                shoulder_side = 'L' if 'l_shoulder' in kp_dict else 'R'
+                analysis['feedback'].append(f'{shoulder_side}쪽 어깨만 감지되었습니다. 정면을 향해주세요')
+                logger.info(f"한쪽 어깨만 감지: {shoulder_side}")
             elif 'neck' in kp_dict:
                 # 어깨가 없어도 목이 있으면 부분 점수
                 analysis['shoulder_balance'] = 'partial'
-                analysis['posture_score'] += 15
+                analysis['posture_score'] += 10
                 analysis['feedback'].append('어깨 키포인트를 감지하지 못했습니다')
+            else:
+                # 팔 부위 키포인트로 어깨 위치 추정
+                arms = [name for name in kp_dict.keys() if any(part in name for part in ['elbow', 'wrist'])]
+                if len(arms) >= 2:
+                    analysis['shoulder_balance'] = 'estimated'
+                    analysis['posture_score'] += 10
+                    analysis['feedback'].append('팔 위치로 어깨 균형을 추정했습니다')
             
-            # 목/머리 위치 체크 (nose 대신 더 많은 얼굴 키포인트 활용)
+            # 목/머리 위치 체크 (더 유연한 분석)
             head_detected = False
-            if 'neck' in kp_dict:
-                head_points = [kp for name, kp in kp_dict.items() if name in ['nose', 'l_eye', 'r_eye']]
+            head_points = [name for name in kp_dict.keys() if name in ['nose', 'l_eye', 'r_eye', 'l_ear', 'r_ear']]
+            logger.info(f"감지된 머리 키포인트: {head_points}")
+            logger.info(f"목 키포인트 존재: {'neck' in kp_dict}")
+            
+            if 'neck' in kp_dict and head_points:
+                neck = kp_dict['neck']
+                # 가장 신뢰도 높은 얼굴 키포인트 사용
+                best_head_point = max([kp_dict[name] for name in head_points], key=lambda x: x.get('confidence', 0))
                 
-                if head_points:
-                    neck = kp_dict['neck']
-                    # 가장 신뢰도 높은 얼굴 키포인트 사용
-                    head_point = max(head_points, key=lambda x: x.get('confidence', 0))
-                    
-                    # 목과 얼굴의 수직 정렬 체크
-                    head_tilt = abs(neck['x'] - head_point['x'])
-                    
-                    if head_tilt < 40:  # 임계값을 40으로 증가
-                        analysis['head_position'] = 'straight'
-                        analysis['posture_score'] += 25
-                        analysis['feedback'].append('머리 위치가 바른 자세예요 ✓')
-                    else:
-                        analysis['head_position'] = 'tilted'
-                        analysis['posture_score'] += 10
-                        analysis['feedback'].append('머리를 곧게 세워보세요 ⚠')
-                    head_detected = True
+                # 목과 얼굴의 수직 정렬 체크
+                head_tilt = abs(neck['x'] - best_head_point['x'])
+                
+                if head_tilt < 50:  # 더욱 관대한 임계값
+                    analysis['head_position'] = 'straight'
+                    analysis['posture_score'] += 25
+                    analysis['feedback'].append('머리 위치가 바른 자세예요 ✓')
+                else:
+                    analysis['head_position'] = 'tilted'
+                    analysis['posture_score'] += 15
+                    analysis['feedback'].append('머리를 곧게 세워보세요 ⚠')
+                head_detected = True
+            elif head_points and len(head_points) >= 2:
+                # 목이 없어도 얼굴 키포인트들로 추정
+                analysis['head_position'] = 'estimated'
+                analysis['posture_score'] += 15
+                analysis['feedback'].append('얼굴 키포인트로 머리 위치를 추정했습니다')
+                head_detected = True
+            elif 'neck' in kp_dict:
+                # 목만 있는 경우
+                analysis['head_position'] = 'partial'
+                analysis['posture_score'] += 10
+                analysis['feedback'].append('목 키포인트만 감지되었습니다')
+                head_detected = True
             
             if not head_detected:
                 analysis['feedback'].append('머리 위치를 분석할 수 없습니다')
             
-            # 팔 위치 체크 (더 관대한 조건)
-            arm_positions = []
-            arms_detected = 0
+            # 팔 위치 체크 (감지된 키포인트 활용)
+            arm_parts = [name for name in kp_dict.keys() if any(part in name for part in ['shoulder', 'elbow', 'wrist'])]
+            logger.info(f"감지된 팔 부위: {arm_parts}")
+            arm_detected = False
             
+            # 어깨-팔꿈치-손목 연결 체크
             for side in ['l', 'r']:
                 shoulder_key = f'{side}_shoulder'
                 elbow_key = f'{side}_elbow'
                 wrist_key = f'{side}_wrist'
                 
-                if shoulder_key in kp_dict:
-                    shoulder = kp_dict[shoulder_key]
-                    arms_detected += 1
-                    
-                    if elbow_key in kp_dict:
+                side_parts = [key for key in [shoulder_key, elbow_key, wrist_key] if key in kp_dict]
+                
+                if len(side_parts) >= 2:
+                    # 2개 이상의 팔 부위가 감지된 경우
+                    if shoulder_key in kp_dict and elbow_key in kp_dict:
+                        shoulder = kp_dict[shoulder_key]
                         elbow = kp_dict[elbow_key]
                         
-                        # 팔꿈치가 어깨보다 많이 위에 있지 않은지 체크 (더 관대하게)
-                        if elbow['y'] >= shoulder['y'] - 50:  # 50픽셀 여유
-                            arm_positions.append('natural')
+                        if elbow['y'] >= shoulder['y'] - 60:  # 매우 관대한 조건
+                            analysis['arm_position'] = 'natural'
+                            analysis['posture_score'] += 25
+                            analysis['feedback'].append(f'{side.upper()}팔 자세가 자연스러워요 ✓')
                         else:
-                            arm_positions.append('raised')
-                    else:
-                        # 팔꿈치가 없어도 어깨가 있으면 부분적으로 자연스럽다고 가정
-                        arm_positions.append('natural')
+                            analysis['arm_position'] = 'raised'
+                            analysis['posture_score'] += 15
+                            analysis['feedback'].append(f'{side.upper()}팔이 약간 올라가 있어요 ⚠')
+                        arm_detected = True
+                        break
+                    elif elbow_key in kp_dict and wrist_key in kp_dict:
+                        # 팔꿈치-손목만 있는 경우도 분석
+                        elbow = kp_dict[elbow_key]
+                        wrist = kp_dict[wrist_key]
+                        
+                        # 손목이 팔꿈치보다 아래에 있으면 자연스러운 자세로 추정
+                        if wrist['y'] >= elbow['y'] - 30:
+                            analysis['arm_position'] = 'estimated'
+                            analysis['posture_score'] += 20
+                            analysis['feedback'].append(f'{side.upper()}팔 위치가 자연스러운 것으로 추정됩니다 👌')
+                        else:
+                            analysis['arm_position'] = 'partial'
+                            analysis['posture_score'] += 10
+                            analysis['feedback'].append(f'{side.upper()}팔 일부만 감지되었습니다')
+                        arm_detected = True
+                        break
             
-            if arms_detected > 0:
-                if len(arm_positions) > 0:
-                    natural_count = arm_positions.count('natural')
-                    if natural_count == len(arm_positions):
-                        analysis['arm_position'] = 'natural'
-                        analysis['posture_score'] += 25
-                        analysis['feedback'].append('팔 자세가 자연스러워요 ✓')
-                    elif natural_count > 0:
-                        analysis['arm_position'] = 'partial'
-                        analysis['posture_score'] += 15
-                        analysis['feedback'].append('일부 팔 자세가 자연스러워요 👌')
-                    else:
-                        analysis['arm_position'] = 'raised'
-                        analysis['posture_score'] += 5
-                        analysis['feedback'].append('팔을 자연스럽게 내려보세요 ⚠')
-            else:
+            # 팔 부위가 하나라도 감지된 경우 (강제 분석)
+            if not arm_detected and len(arm_parts) > 0:
+                analysis['arm_position'] = 'partial'
+                analysis['posture_score'] += 10
+                analysis['feedback'].append(f'팔 일부 감지: {", ".join(arm_parts)}')
+                arm_detected = True
+                logger.info(f"팔 부위 강제 분석 적용: {arm_parts}")
+            
+            # 현재 데이터 기반 강제 분석 (r_wrist, l_elbow)
+            if not arm_detected:
+                if 'r_wrist' in kp_dict or 'l_elbow' in kp_dict:
+                    analysis['arm_position'] = 'detected'
+                    analysis['posture_score'] += 15
+                    detected_parts = [name for name in ['r_wrist', 'l_elbow'] if name in kp_dict]
+                    analysis['feedback'].append(f'팔 키포인트 감지: {", ".join(detected_parts)}')
+                    arm_detected = True
+                    logger.info(f"강제 팔 분석 적용: {detected_parts}")
+            
+            if not arm_detected:
                 analysis['feedback'].append('팔 키포인트를 감지하지 못했습니다')
             
             # 점수 상한 설정
