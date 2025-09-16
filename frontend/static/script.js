@@ -41,7 +41,6 @@ class InterviewFeedbackSystem {
         this.elements = {
             startBtn: document.getElementById('start-btn'),
             stopBtn: document.getElementById('stop-btn'),
-            captureBtn: document.getElementById('capture-btn'),
             settingsBtn: document.getElementById('settings-btn'),
             timerDisplay: document.getElementById('timer-display'),
             connectionStatus: document.getElementById('connection-status'),
@@ -93,7 +92,6 @@ class InterviewFeedbackSystem {
     bindEvents() {
         this.elements.startBtn.addEventListener('click', () => this.startAnalysis());
         this.elements.stopBtn.addEventListener('click', () => this.stopAnalysis());
-        this.elements.captureBtn.addEventListener('click', () => this.captureImage());
         this.elements.settingsBtn.addEventListener('click', () => this.openSettings());
         
         // 음성 분석 이벤트
@@ -184,7 +182,6 @@ class InterviewFeedbackSystem {
             // UI 업데이트
             this.elements.startBtn.disabled = true;
             this.elements.stopBtn.disabled = false;
-            this.elements.captureBtn.disabled = false;
             
             // 타이머 시작
             this.startTimer();
@@ -231,7 +228,6 @@ class InterviewFeedbackSystem {
         // UI 리셋
         this.elements.startBtn.disabled = false;
         this.elements.stopBtn.disabled = true;
-        this.elements.captureBtn.disabled = true;
         
         // 캔버스 클리어
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -464,20 +460,6 @@ class InterviewFeedbackSystem {
         }, 3000);
     }
     
-    async captureImage() {
-        if (!this.isRunning) return;
-        
-        // 현재 프레임 캡처
-        this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
-        
-        // 다운로드 링크 생성
-        const link = document.createElement('a');
-        link.download = `interview-capture-${new Date().getTime()}.jpg`;
-        link.href = this.canvas.toDataURL('image/jpeg', 0.9);
-        link.click();
-        
-        this.addFeedbackMessage('이미지가 캡처되었습니다 📸', 'success');
-    }
     
     openSettings() {
         this.elements.settingsModal.style.display = 'block';
